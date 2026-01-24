@@ -1590,13 +1590,13 @@ class _CategoryFormDialogV2State extends ConsumerState<_CategoryFormDialogV2> {
                                 ],
                               ),
                             ),
-                              Switch(
-                                value: _permittiDivisioni,
-                                onChanged: (v) =>
-                                    setState(() => _permittiDivisioni = v),
-                                activeTrackColor: AppColors.primary,
-                                activeColor: Colors.white,
-                              ),
+                            Switch(
+                              value: _permittiDivisioni,
+                              onChanged: (v) =>
+                                  setState(() => _permittiDivisioni = v),
+                              activeTrackColor: AppColors.primary,
+                              activeThumbColor: Colors.white,
+                            ),
                           ],
                         ),
                       ),
@@ -1707,6 +1707,7 @@ class _CategoryFormDialogV2State extends ConsumerState<_CategoryFormDialogV2> {
         _disattivazioneProgrammata = value == 'scheduled';
       }),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Radio<String>(
             value: value,

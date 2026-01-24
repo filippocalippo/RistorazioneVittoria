@@ -27,7 +27,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
         }
         return allowed === origin
     })
-    
+
     return {
         'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -43,11 +43,11 @@ async function retrievePaymentIntent(paymentIntentId: string): Promise<any> {
             'Stripe-Version': STRIPE_API_VERSION,
         },
     })
-    
+
     if (!response.ok) {
         throw new Error('Failed to retrieve payment intent')
     }
-    
+
     return await response.json()
 }
 
@@ -84,7 +84,7 @@ serve(async (req: Request) => {
         // 3. Verify Order Ownership (Security)
         const { data: orderData, error: orderLookupError } = await supabaseAdmin
             .from('ordini')
-            .select('cliente_id')
+            .select('cliente_id, organization_id')
             .eq('id', orderId)
             .single()
 
@@ -96,10 +96,14 @@ serve(async (req: Request) => {
             throw new Error('Unauthorized: Order does not belong to user')
         }
 
+        if (pi.metadata.organizationId && orderData.organization_id && pi.metadata.organizationId !== orderData.organization_id) {
+            throw new Error('Payment organization mismatch')
+        }
+
         // 4. Update Order in DB 
         // No, trigger allows service_role? Yes, I added IF auth.role() = 'authenticated')
         // Service Role updates should pass.)
-        
+
         const { error: updateError } = await supabaseAdmin
             .from('ordini')
             .update({

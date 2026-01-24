@@ -1,6 +1,8 @@
+// Organization filtering handled via menu_item_id scoping (menu items are org-filtered)
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/menu_item_extra_ingredient_model.dart';
+import 'organization_provider.dart';
 
 part 'product_extra_ingredients_provider.g.dart';
 
@@ -15,14 +17,20 @@ class ProductExtraIngredients extends _$ProductExtraIngredients {
     String menuItemId,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       // Fetch extra ingredients with their ingredient data including size prices
-      final response = await supabase
+      var query = supabase
           .from('menu_item_extra_ingredients')
           .select('*, ingredients(*, ingredient_size_prices(*))')
-          .eq('menu_item_id', menuItemId)
-          .order('ordine', ascending: true);
+          .eq('menu_item_id', menuItemId);
+
+      if (orgId != null) {
+        query = query.eq('organization_id', orgId);
+      }
+
+      final response = await query.order('ordine', ascending: true);
 
       final allExtras = (response as List).map((json) {
         // Parse the joined ingredient data
@@ -51,9 +59,11 @@ class ProductExtraIngredients extends _$ProductExtraIngredients {
     required int ordine,
   }) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase.from('menu_item_extra_ingredients').insert({
+        if (orgId != null) 'organization_id': orgId,
         'menu_item_id': menuItemId,
         'ingredient_id': ingredientId,
         'max_quantity': maxQuantity,
@@ -125,6 +135,7 @@ class ProductExtraIngredients extends _$ProductExtraIngredients {
     List<MenuItemExtraIngredientModel> ingredients,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase
@@ -135,6 +146,7 @@ class ProductExtraIngredients extends _$ProductExtraIngredients {
       if (ingredients.isNotEmpty) {
         final payload = ingredients.map((ingredient) {
           return {
+            if (orgId != null) 'organization_id': orgId,
             'menu_item_id': menuItemId,
             'ingredient_id': ingredient.ingredientId,
             'max_quantity': ingredient.maxQuantity,

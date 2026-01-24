@@ -1,7 +1,9 @@
+// Organization filtering handled by upstream providers (menuProvider, sizesProvider, ingredientsProvider)
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/menu_item_size_assignment_model.dart';
+import 'organization_provider.dart';
 
 part 'product_sizes_provider.g.dart';
 
@@ -16,13 +18,19 @@ class ProductSizes extends _$ProductSizes {
     String menuItemId,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      final response = await supabase
+      var query = supabase
           .from('menu_item_sizes')
           .select('*, sizes_master(*)')
-          .eq('menu_item_id', menuItemId)
-          .order('ordine', ascending: true);
+          .eq('menu_item_id', menuItemId);
+
+      if (orgId != null) {
+        query = query.eq('organization_id', orgId);
+      }
+
+      final response = await query.order('ordine', ascending: true);
 
       final allSizes = (response as List).map((json) {
         // Parse the joined size data
@@ -46,9 +54,11 @@ class ProductSizes extends _$ProductSizes {
   /// Create a new size assignment for a product
   Future<void> assignSize(MenuItemSizeAssignmentModel assignment) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase.from('menu_item_sizes').insert({
+        if (orgId != null) 'organization_id': orgId,
         'menu_item_id': assignment.menuItemId,
         'size_id': assignment.sizeId,
         'display_name_override': assignment.displayNameOverride,
@@ -143,6 +153,7 @@ class ProductSizes extends _$ProductSizes {
     List<MenuItemSizeAssignmentModel> assignments,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       // Remove existing entries first to avoid duplicates
@@ -154,6 +165,7 @@ class ProductSizes extends _$ProductSizes {
       if (assignments.isNotEmpty) {
         final payload = assignments.map((assignment) {
           return {
+            if (orgId != null) 'organization_id': orgId,
             'menu_item_id': menuItemId,
             'size_id': assignment.sizeId,
             'display_name_override': assignment.displayNameOverride,

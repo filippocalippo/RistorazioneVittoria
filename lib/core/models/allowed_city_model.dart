@@ -6,6 +6,7 @@ part 'allowed_city_model.g.dart';
 @freezed
 class AllowedCityModel with _$AllowedCityModel {
   const factory AllowedCityModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     required String nome,
     required String cap,

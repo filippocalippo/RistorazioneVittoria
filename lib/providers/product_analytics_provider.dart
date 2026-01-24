@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils/enums.dart';
@@ -78,10 +79,19 @@ final productAnalyticsProvider =
         final startDate = filter.startDate;
         final endDate = filter.endDate;
 
+        // Get organization context for multi-tenant filtering
+        final orgId = await ref.read(currentOrganizationProvider.future);
+
+        // Build base query
+        var query = supabase.from('ordini').select('*, ordini_items(*)');
+
+        // Multi-tenant filter: org-specific or global (null)
+        if (orgId != null) {
+          query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+        }
+
         // Fetch orders with items for the selected period
-        final ordersResponse = await supabase
-            .from('ordini')
-            .select('*, ordini_items(*)')
+        final ordersResponse = await query
             .or(
               'and(slot_prenotato_start.gte.${startDate.toUtc().toIso8601String()},slot_prenotato_start.lte.${endDate.toUtc().toIso8601String()}),'
               'and(slot_prenotato_start.is.null,created_at.gte.${startDate.toUtc().toIso8601String()},created_at.lte.${endDate.toUtc().toIso8601String()})',

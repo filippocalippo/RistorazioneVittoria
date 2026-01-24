@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../DesignSystem/design_tokens.dart';
 import '../../../core/models/delivery_zone_model.dart';
 import '../../../providers/delivery_zones_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/geometry_utils.dart';
 
@@ -532,8 +533,10 @@ class _ZoneManagementShellState extends ConsumerState<ZoneManagementShell> {
       return;
     }
 
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final zone = DeliveryZoneModel(
       id: '',
+      organizationId: orgId,
       name: _nameController.text.trim(),
       color: _selectedColor,
       polygon: List.from(_polygonPoints),
@@ -554,7 +557,7 @@ class _ZoneManagementShellState extends ConsumerState<ZoneManagementShell> {
 
     try {
       final service = ref.read(deliveryZonesServiceProvider);
-      await service.createZone(zone);
+      await service.createZone(zone, organizationId: orgId);
 
       // Force refresh the provider
       ref.invalidate(deliveryZonesProvider);
@@ -588,7 +591,9 @@ class _ZoneManagementShellState extends ConsumerState<ZoneManagementShell> {
       return;
     }
 
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final updatedZone = _editingZone!.copyWith(
+      organizationId: orgId ?? _editingZone!.organizationId,
       name: _nameController.text.trim(),
       color: _selectedColor,
       polygon: _polygonPoints.isNotEmpty ? List.from(_polygonPoints) : null,
@@ -604,7 +609,11 @@ class _ZoneManagementShellState extends ConsumerState<ZoneManagementShell> {
 
     try {
       final service = ref.read(deliveryZonesServiceProvider);
-      await service.updateZone(_editingZone!.id, updatedZone);
+      await service.updateZone(
+        _editingZone!.id,
+        updatedZone,
+        organizationId: orgId,
+      );
 
       // Force refresh the provider
       ref.invalidate(deliveryZonesProvider);

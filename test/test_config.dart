@@ -11,14 +11,14 @@ export 'package:flutter_test/flutter_test.dart';
 export 'package:mocktail/mocktail.dart';
 
 // Re-export mocks
-export 'mocks/supabase_mocks.dart';
-export 'mocks/service_mocks.dart';
+// export 'mocks/supabase_mocks.dart';
+// export 'mocks/service_mocks.dart';
 
 // Re-export fixtures
-export 'fixtures/model_factories.dart';
+// export 'fixtures/model_factories.dart';
 
 // Re-export helpers
-export 'helpers/test_helpers.dart';
+// export 'helpers/test_helpers.dart';
 
 // Re-export app models for convenience
 export 'package:rotante/core/models/user_model.dart';

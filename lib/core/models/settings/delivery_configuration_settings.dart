@@ -8,6 +8,7 @@ part 'delivery_configuration_settings.g.dart';
 @freezed
 class DeliveryConfigurationSettings with _$DeliveryConfigurationSettings {
   const factory DeliveryConfigurationSettings({
+    @JsonKey(name: 'organization_id') String? organizationId,
     @JsonKey(name: 'tipo_calcolo_consegna')
     @Default('fisso')
     String tipoCalcoloConsegna,

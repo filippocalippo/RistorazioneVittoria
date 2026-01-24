@@ -2,21 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_multi_formatter/flutter_multi_formatter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../providers/cart_provider.dart';
 import '../../../providers/menu_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/pizzeria_settings_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/enums.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/models/user_address_model.dart';
 import '../../../DesignSystem/design_tokens.dart';
-import '../../../providers/ingredients_provider.dart';
-import '../../../core/models/ingredient_model.dart';
 import '../../../core/services/order_price_calculator.dart';
-import '../../../core/providers/inventory_provider.dart';
-import '../../../core/services/inventory_service.dart';
 import '../../../core/services/stripe_service.dart';
 import '../../../core/models/settings/pizzeria_settings_model.dart';
 
@@ -821,11 +817,14 @@ class _CheckoutScreenNewState extends ConsumerState<CheckoutScreenNew> {
         };
       }).toList();
 
+      final orgId = await ref.read(currentOrganizationProvider.future);
+
       // 2. Call Place Order (with complete items and totals)
       final requestData = {
         'items': orderItems,
         'orderType': widget.orderType.dbValue,
         'paymentMethod': _paymentMethod.name,
+        if (orgId != null) 'organizationId': orgId,
         'nomeCliente': '${user.nome ?? ''} ${user.cognome ?? ''}'.trim(),
         'telefonoCliente': telefonoCliente,
         'emailCliente': user.email,
@@ -884,6 +883,7 @@ class _CheckoutScreenNewState extends ConsumerState<CheckoutScreenNew> {
         await db.verifyOrderPayment(
           orderId: orderId,
           paymentIntentId: paymentIntentId,
+          organizationId: orgId,
         );
       }
 

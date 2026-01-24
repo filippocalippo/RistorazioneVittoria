@@ -67,6 +67,7 @@ interface OrderItemInput {
 }
 
 interface PlaceOrderRequest {
+    organizationId?: string  // Multi-tenant: organization to create order for
     items: OrderItemInput[]
     orderType: 'delivery' | 'takeaway' | 'dine_in'
     paymentMethod: 'cash' | 'card' | 'online'
@@ -268,7 +269,8 @@ class OrderPriceCalculator {
 
 async function validateAndCorrectPrices(
     supabaseAdmin: ReturnType<typeof createClient>,
-    items: OrderItemInput[]
+    items: OrderItemInput[],
+    organizationId?: string
 ): Promise<{ items: OrderItemInput[]; corrected: boolean }> {
     console.log(`[VALIDATION] Checking ${items.length} items for price corrections`)
 
@@ -299,6 +301,7 @@ async function validateAndCorrectPrices(
         .from('menu_items')
         .select('id, prezzo, prezzo_scontato')
         .in('id', Array.from(menuItemIds))
+        .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
 
     let sizes: SizeVariant[] = []
     let sizeAssignments: SizeAssignment[] = []
@@ -307,6 +310,7 @@ async function validateAndCorrectPrices(
             .from('sizes_master')
             .select('id, price_multiplier')
             .in('id', Array.from(sizeIds))
+            .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
         sizes = sizesData || []
 
         const { data: assignmentsData } = await supabaseAdmin
@@ -314,6 +318,7 @@ async function validateAndCorrectPrices(
             .select('menu_item_id, size_id, price_override')
             .in('menu_item_id', Array.from(menuItemIds))
             .in('size_id', Array.from(sizeIds))
+            .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
         sizeAssignments = assignmentsData || []
     }
 
@@ -324,6 +329,7 @@ async function validateAndCorrectPrices(
             .from('ingredients')
             .select('id, prezzo')
             .in('id', Array.from(ingredientIds))
+            .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
         ingredients = ingredientsData || []
 
         if (sizeIds.size > 0) {
@@ -332,6 +338,7 @@ async function validateAndCorrectPrices(
                 .select('ingredient_id, size_id, prezzo')
                 .in('ingredient_id', Array.from(ingredientIds))
                 .in('size_id', Array.from(sizeIds))
+                .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
             ingredientSizePrices = sizePricesData || []
         }
     }
@@ -370,7 +377,7 @@ async function validateAndCorrectPrices(
             // Exact port of cashier_order_panel.dart lines 670-686
             const allIngredients = variants.addedIngredients || []
             const secondProductName = variants.secondProduct.name || ''
-            
+
             const firstProductIngredients: IngredientSelection[] = []
             const secondProductIngredients: IngredientSelection[] = []
 
@@ -548,16 +555,48 @@ serve(async (req: Request) => {
 
         const { data: profile } = await supabaseAdmin
             .from('profiles')
-            .select('ruolo')
+            .select('ruolo, current_organization_id')
             .eq('id', user.id)
             .single()
 
-        const isStaff = ['manager', 'kitchen', 'delivery'].includes(profile?.ruolo ?? '')
+        // Multi-tenant: Get organization ID from request, profile, or default
+        let organizationId = body.organizationId || profile?.current_organization_id
+        if (!organizationId) {
+            // Fallback: get first active organization
+            const { data: orgs } = await supabaseAdmin
+                .from('organizations')
+                .select('id')
+                .eq('is_active', true)
+                .limit(1)
+            if (orgs && orgs.length > 0) organizationId = orgs[0].id
+        }
+        if (!organizationId) throw new Error('Organization context required')
 
-        console.log(`[ORDER] User: ${user.email}, Staff: ${isStaff}, Items: ${body.items.length}`)
+        const { data: membership } = await supabaseAdmin
+            .from('organization_members')
+            .select('role, is_active')
+            .eq('organization_id', organizationId)
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+        const legacyRole = profile?.ruolo ?? ''
+        const isStaff = ['owner', 'manager', 'kitchen', 'delivery'].includes(membership?.role ?? legacyRole)
+
+        if (!membership) {
+            const initialRole = ['manager', 'kitchen', 'delivery'].includes(legacyRole) ? legacyRole : 'customer'
+            await supabaseAdmin.from('organization_members').upsert({
+                organization_id: organizationId,
+                user_id: user.id,
+                role: initialRole,
+                accepted_at: new Date().toISOString(),
+                is_active: true
+            }, { onConflict: 'organization_id,user_id' })
+        }
+
+        console.log(`[ORDER] User: ${user.email}, Staff: ${isStaff}, Org: ${organizationId}, Items: ${body.items.length}`)
 
         // VALIDATE AND CORRECT PRICES - Always validate, use server prices if mismatch found
-        const priceCheck = await validateAndCorrectPrices(supabaseAdmin, body.items)
+        const priceCheck = await validateAndCorrectPrices(supabaseAdmin, body.items, organizationId)
         const correctedItems = priceCheck.items
 
         if (priceCheck.corrected) {
@@ -581,11 +620,14 @@ serve(async (req: Request) => {
 
             const { data: existing } = await supabaseAdmin
                 .from('ordini')
-                .select('numero_ordine, created_at')
+                .select('numero_ordine, created_at, organization_id')
                 .eq('id', body.orderId)
                 .single()
 
             if (!existing) throw new Error('Order not found')
+            if (existing.organization_id !== organizationId) {
+                throw new Error('Order belongs to a different organization')
+            }
 
             const orderData = {
                 tipo: body.orderType,
@@ -629,7 +671,11 @@ serve(async (req: Request) => {
                 .delete()
                 .eq('ordine_id', body.orderId)
 
-            const itemsWithOrderId = correctedItems.map(item => ({ ...item, ordine_id: body.orderId }))
+            const itemsWithOrderId = correctedItems.map(item => ({
+                ...item,
+                ordine_id: body.orderId,
+                organization_id: organizationId
+            }))
             const { error: itemsError } = await supabaseAdmin
                 .from('ordini_items')
                 .insert(itemsWithOrderId)
@@ -649,6 +695,7 @@ serve(async (req: Request) => {
 
             const orderData = {
                 cliente_id: isStaff ? null : user.id,
+                organization_id: organizationId,  // Multi-tenant
                 cashier_customer_id: body.cashierCustomerId,
                 stato: status,
                 tipo: body.orderType,
@@ -684,7 +731,11 @@ serve(async (req: Request) => {
             }
 
             // Insert items with server-corrected prices
-            const itemsWithOrderId = correctedItems.map(item => ({ ...item, ordine_id: newOrder.id }))
+            const itemsWithOrderId = correctedItems.map(item => ({
+                ...item,
+                ordine_id: newOrder.id,
+                organization_id: organizationId
+            }))
             const { error: itemsError } = await supabaseAdmin
                 .from('ordini_items')
                 .insert(itemsWithOrderId)
@@ -717,6 +768,7 @@ serve(async (req: Request) => {
                 {
                     userId: user.id,
                     orderId: order.id,
+                    organizationId: organizationId,
                 }
             )
 

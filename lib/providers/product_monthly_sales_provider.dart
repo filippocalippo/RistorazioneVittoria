@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils/logger.dart';
@@ -11,23 +12,28 @@ final productMonthlySalesProvider = FutureProvider<Map<String, int>>((
   final now = DateTime.now();
   final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
+  // Get organization context for multi-tenant filtering
+  final orgId = await ref.read(currentOrganizationProvider.future);
+
   try {
     // Determine start date string (UTC)
     final startDateStr = thirtyDaysAgo.toUtc().toIso8601String();
 
-    // Fetch order items from valid orders in the last 30 days
-    // We use a direct query to join ordini_items with ordini
-    // Since we can't easily do a join with aggregate in one step with the standard client without raw SQL or Views,
-    // we'll fetch the relevant items and aggregate in Dart.
-    // This is "performance effective" because we only select 2 columns.
-
-    // Note: To filter by ordini.created_at, we need correct foreign key usage.
-    // Assuming 'ordini' table has 'created_at' and 'stato'.
-    // We use !inner join to filter ordini_items based on ordini properties.
-
-    final response = await supabase
+    // Build base query with inner join to ordini
+    var query = supabase
         .from('ordini_items')
-        .select('menu_item_id, quantita, ordini!inner(created_at, stato)')
+        .select(
+          'menu_item_id, quantita, ordini!inner(created_at, stato, organization_id)',
+        );
+
+    // Multi-tenant filter on the parent ordini table
+    if (orgId != null) {
+      query = query.or(
+        'ordini.organization_id.eq.$orgId,ordini.organization_id.is.null',
+      );
+    }
+
+    final response = await query
         .gte('ordini.created_at', startDateStr)
         .neq('ordini.stato', 'cancelled');
 

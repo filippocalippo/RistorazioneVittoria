@@ -5,6 +5,7 @@
 
 library;
 
+// Organization filtering handled by upstream providers (menuProvider, sizesProvider, ingredientsProvider)
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import 'menu_provider.dart';
 import 'sizes_provider.dart';
 import 'ingredients_provider.dart';
 import 'pizzeria_settings_provider.dart';
+import 'organization_provider.dart';
 
 part 'order_price_calculator_provider.g.dart';
 
@@ -28,12 +30,16 @@ class AllSizeAssignments extends _$AllSizeAssignments {
 
   Future<List<MenuItemSizeAssignmentModel>> _fetchAllSizeAssignments() async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      final response = await supabase
-          .from('menu_item_sizes')
-          .select('*, sizes_master(*)')
-          .order('ordine', ascending: true);
+      var query = supabase.from('menu_item_sizes').select('*, sizes_master(*)');
+
+      if (orgId != null) {
+        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      }
+
+      final response = await query.order('ordine', ascending: true);
 
       return (response as List).map((json) {
         final sizeData = json['sizes_master'] as Map<String, dynamic>?;

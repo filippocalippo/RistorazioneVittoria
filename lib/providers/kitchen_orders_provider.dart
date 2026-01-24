@@ -6,6 +6,7 @@ import '../core/services/realtime_service.dart';
 import '../core/utils/enums.dart';
 import 'auth_provider.dart';
 import '../core/exceptions/app_exceptions.dart';
+import 'organization_provider.dart';
 
 part 'kitchen_orders_provider.g.dart';
 
@@ -20,6 +21,7 @@ class KitchenOrders extends _$KitchenOrders {
     }
 
     final db = DatabaseService();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
     // Kitchen sees confirmed, preparing, and ready orders
     return await db.getOrders(
       statuses: [
@@ -28,6 +30,7 @@ class KitchenOrders extends _$KitchenOrders {
         OrderStatus.ready,
       ],
       limit: 50,
+      organizationId: orgId,
     );
   }
 
@@ -91,13 +94,16 @@ Stream<List<OrderModel>> kitchenOrdersRealtime(Ref ref) {
   ];
 
   final realtime = RealtimeService();
-  return realtime
-      .watchOrdersByStatus(statuses: watchedStatuses)
+  final orgIdFuture = ref.watch(currentOrganizationProvider.future);
+  return Stream.fromFuture(orgIdFuture).asyncExpand((orgId) {
+    return realtime
+      .watchOrdersByStatus(statuses: watchedStatuses, organizationId: orgId)
       .map((orders) {
         final sorted = [...orders]
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return sorted.take(50).toList();
       });
+  });
 }
 
 /// Provider for filtering kitchen orders by status

@@ -338,16 +338,18 @@ class _RangeText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM', 'it_IT');
-    if (start == null)
+    if (start == null) {
       return Text(
         'Seleziona una data di inizio',
         style: AppTypography.caption.copyWith(color: AppColors.textTertiary),
       );
-    if (end == null)
+    }
+    if (end == null) {
       return Text(
         'Seleziona la data di fine dopo il ${df.format(start!)}',
         style: AppTypography.caption.copyWith(color: AppColors.primary),
       );
+    }
     return Text(
       '${df.format(start!)} - ${df.format(end!)}',
       style: AppTypography.caption.copyWith(
@@ -455,8 +457,9 @@ class _CalendarGrid extends StatelessWidget {
           itemCount: 42,
           itemBuilder: (context, index) {
             final dayNum = index - offset + 1;
-            if (dayNum < 1 || dayNum > lastDay.day)
+            if (dayNum < 1 || dayNum > lastDay.day) {
               return const SizedBox.shrink();
+            }
 
             final date = DateTime(focusedDate.year, focusedDate.month, dayNum);
             final isStart = startDate != null && _isSameDay(date, startDate!);

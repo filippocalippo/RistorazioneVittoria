@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -50,10 +51,19 @@ class IngredientStockStatus {
 Future<StockSummary> stockSummary(Ref ref) async {
   final supabase = Supabase.instance.client;
 
-  final data = await supabase
+  // Get organization context for multi-tenant filtering
+  final orgId = await ref.read(currentOrganizationProvider.future);
+
+  var query = supabase
       .from('ingredients')
-      .select('id, stock_quantity, low_stock_threshold, track_stock, attivo')
-      .eq('attivo', true);
+      .select('id, stock_quantity, low_stock_threshold, track_stock, attivo');
+
+  // Multi-tenant filter: org-specific or global (null)
+  if (orgId != null) {
+    query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+  }
+
+  final data = await query.eq('attivo', true);
 
   int total = 0;
   int tracked = 0;
@@ -94,9 +104,17 @@ Future<StockSummary> stockSummary(Ref ref) async {
 Future<List<IngredientStockStatus>> lowStockIngredients(Ref ref) async {
   final supabase = Supabase.instance.client;
 
-  final data = await supabase
-      .from('ingredients')
-      .select()
+  // Get organization context for multi-tenant filtering
+  final orgId = await ref.read(currentOrganizationProvider.future);
+
+  var query = supabase.from('ingredients').select();
+
+  // Multi-tenant filter: org-specific or global (null)
+  if (orgId != null) {
+    query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+  }
+
+  final data = await query
       .eq('track_stock', true)
       .eq('attivo', true)
       .order('stock_quantity');
@@ -152,9 +170,17 @@ Future<List<IngredientStockStatus>> lowStockIngredients(Ref ref) async {
 Future<List<IngredientStockStatus>> allTrackedIngredients(Ref ref) async {
   final supabase = Supabase.instance.client;
 
-  final data = await supabase
-      .from('ingredients')
-      .select()
+  // Get organization context for multi-tenant filtering
+  final orgId = await ref.read(currentOrganizationProvider.future);
+
+  var query = supabase.from('ingredients').select();
+
+  // Multi-tenant filter: org-specific or global (null)
+  if (orgId != null) {
+    query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+  }
+
+  final data = await query
       .eq('track_stock', true)
       .eq('attivo', true)
       .order('nome');

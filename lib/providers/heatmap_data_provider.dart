@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../core/config/supabase_config.dart';
 import '../core/utils/logger.dart';
 import 'auth_provider.dart';
+import 'organization_provider.dart';
 
 part 'heatmap_data_provider.g.dart';
 
@@ -75,6 +76,9 @@ Future<HeatmapData> deliveryHeatmapData(Ref ref) async {
   }
 
   try {
+    // Get organization context for multi-tenant filtering
+    final orgId = await ref.read(currentOrganizationProvider.future);
+
     // Calculate date range (last 2 months)
     final now = DateTime.now();
     final twoMonthsAgo = DateTime(now.year, now.month - 2, now.day);
@@ -85,9 +89,7 @@ Future<HeatmapData> deliveryHeatmapData(Ref ref) async {
     );
 
     // Query orders with geocoded positions only
-    final response = await SupabaseConfig.client
-        .from('ordini')
-        .select('''
+    var query = SupabaseConfig.client.from('ordini').select('''
           id,
           tipo,
           latitude_consegna,
@@ -96,7 +98,14 @@ Future<HeatmapData> deliveryHeatmapData(Ref ref) async {
           zone,
           created_at,
           slot_prenotato_start
-        ''')
+        ''');
+
+    // Multi-tenant filter: org-specific or global (null)
+    if (orgId != null) {
+      query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+    }
+
+    final response = await query
         .eq('tipo', 'delivery')
         .not('latitude_consegna', 'is', null)
         .not('longitude_consegna', 'is', null)

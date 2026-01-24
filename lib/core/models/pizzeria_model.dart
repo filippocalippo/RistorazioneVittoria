@@ -1,13 +1,22 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import '../utils/constants.dart';
 
 part 'pizzeria_model.freezed.dart';
 part 'pizzeria_model.g.dart';
 
+/// Business/organization settings model
+///
+/// In multi-tenant mode, nome and logoUrl are loaded dynamically
+/// from the organization settings, not hardcoded constants.
 @freezed
 class PizzeriaModel with _$PizzeriaModel {
   const factory PizzeriaModel({
     required String id,
+
+    /// Organization/pizzeria name (loaded dynamically)
+    @Default('Rotante') String nome,
+
+    /// Logo URL (loaded from organization settings)
+    @Default('') String logoUrl,
     String? indirizzo,
     String? citta,
     String? cap,
@@ -28,10 +37,6 @@ class PizzeriaModel with _$PizzeriaModel {
 
   factory PizzeriaModel.fromJson(Map<String, dynamic> json) =>
       _$PizzeriaModelFromJson(json);
-  
+
   const PizzeriaModel._();
-  
-  // Getters for hardcoded pizzeria info
-  String get nome => AppConstants.pizzeriaName;
-  String get logoUrl => AppConstants.pizzeriaLogo;
 }

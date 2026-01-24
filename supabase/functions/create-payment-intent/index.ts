@@ -30,20 +30,21 @@ interface CartItem {
     quantity: number
     sizeId?: string
     extraIngredients?: { ingredientId: string; quantity: number }[]
-    removedIngredients?: { id: string }[] 
+    removedIngredients?: { id: string }[]
     note?: string
-    
+
     // Split Pizza Support
     isSplit?: boolean
     secondProductId?: string
     secondSizeId?: string
     secondExtraIngredients?: { ingredientId: string; quantity: number }[]
-    
+
     // Pass-through display data
-    specialOptions?: any[] 
+    specialOptions?: any[]
 }
 
 interface PaymentIntentRequest {
+    organizationId?: string  // Multi-tenant: organization context
     items: CartItem[]
     orderType: 'delivery' | 'takeaway' | 'dine_in'
     deliveryLatitude?: number
@@ -107,7 +108,7 @@ async function createPaymentIntent(
 // SECURITY: Get CORS headers based on request origin
 function getCorsHeaders(req: Request): Record<string, string> {
     const origin = req.headers.get('origin') ?? ''
-    
+
     // Check if origin is allowed
     const isAllowed = ALLOWED_ORIGINS.some(allowed => {
         if (allowed.includes('*')) {
@@ -117,7 +118,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
         }
         return allowed === origin
     })
-    
+
     return {
         'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -130,25 +131,25 @@ function validateCartItem(item: CartItem, index: number): void {
     if (!item.menuItemId || typeof item.menuItemId !== 'string') {
         throw new Error(`Invalid item at position ${index + 1}: missing product ID`)
     }
-    
+
     if (typeof item.quantity !== 'number' || !Number.isInteger(item.quantity)) {
         throw new Error(`Invalid item at position ${index + 1}: quantity must be a whole number`)
     }
-    
+
     if (item.quantity < MIN_QUANTITY_PER_ITEM) {
         throw new Error(`Invalid item at position ${index + 1}: quantity must be at least ${MIN_QUANTITY_PER_ITEM}`)
     }
-    
+
     if (item.quantity > MAX_QUANTITY_PER_ITEM) {
         throw new Error(`Invalid item at position ${index + 1}: quantity cannot exceed ${MAX_QUANTITY_PER_ITEM}`)
     }
-    
+
     // Validate extra ingredients if present
     if (item.extraIngredients) {
         if (!Array.isArray(item.extraIngredients)) {
             throw new Error(`Invalid item at position ${index + 1}: extraIngredients must be an array`)
         }
-        
+
         for (const extra of item.extraIngredients) {
             if (!extra.ingredientId || typeof extra.ingredientId !== 'string') {
                 throw new Error(`Invalid item at position ${index + 1}: invalid extra ingredient ID`)
@@ -165,7 +166,7 @@ function validateCartItem(item: CartItem, index: number): void {
             throw new Error(`Invalid item at position ${index + 1}: missing second product ID for split item`)
         }
         if (item.secondExtraIngredients) {
-             if (!Array.isArray(item.secondExtraIngredients)) {
+            if (!Array.isArray(item.secondExtraIngredients)) {
                 throw new Error(`Invalid item at position ${index + 1}: secondExtraIngredients must be an array`)
             }
         }
@@ -178,20 +179,22 @@ async function calculateDeliveryFee(
     orderType: string,
     subtotal: number,
     latitude?: number,
-    longitude?: number
+    longitude?: number,
+    organizationId?: string
 ): Promise<number> {
     // No delivery fee for non-delivery orders
     if (orderType !== 'delivery') {
         return 0
     }
-    
+
     // Fetch delivery configuration
     const { data: config } = await supabaseAdmin
         .from('delivery_configuration')
         .select('*')
+        .eq('organization_id', organizationId ?? '')
         .limit(1)
         .maybeSingle()
-    
+
     if (!config) {
         // Default delivery fee if no config
         return 3.00
@@ -203,19 +206,20 @@ async function calculateDeliveryFee(
             return 0.0
         }
     }
-    
+
     // Fetch pizzeria coordinates
     const { data: pizzeria } = await supabaseAdmin
         .from('business_rules')
         .select('latitude, longitude')
+        .eq('organization_id', organizationId ?? '')
         .limit(1)
         .maybeSingle()
-    
+
     // If no coordinates provided or pizzeria location unknown, use base fee
     if (!latitude || !longitude || !pizzeria?.latitude || !pizzeria?.longitude) {
         return config.costo_consegna_base ?? 3.00
     }
-    
+
     // Calculate distance using Haversine formula
     const R = 6371 // Earth's radius in km
     const dLat = (latitude - pizzeria.latitude) * Math.PI / 180
@@ -225,13 +229,13 @@ async function calculateDeliveryFee(
         Math.sin(dLon / 2) * Math.sin(dLon / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     const distance = R * c
-    
+
     // Radial Calculation
-    if (config.tipo_calcolo_consegna === 'radiale' && config.radial_tiers) {
-        const tiers = config.radial_tiers as { km: number, price: number }[]
+    if (config.tipo_calcolo_consegna === 'radiale' && config.costo_consegna_radiale) {
+        const tiers = config.costo_consegna_radiale as { km: number, price: number }[]
         // Sort tiers by distance
         tiers.sort((a, b) => a.km - b.km)
-        
+
         for (const tier of tiers) {
             if (distance <= tier.km) {
                 return tier.price
@@ -240,20 +244,20 @@ async function calculateDeliveryFee(
         // Outside max radius
         return config.prezzo_fuori_raggio ?? config.costo_consegna_base ?? 3.00
     }
-    
+
     // Per KM Calculation
     if (config.tipo_calcolo_consegna === 'per_km') {
         const baseFee = config.costo_consegna_base ?? 3.00
         const perKmFee = config.costo_consegna_per_km ?? 0.50
         return baseFee + (distance * perKmFee)
     }
-    
+
     return config.costo_consegna_base ?? 3.00
 }
 
 serve(async (req: Request) => {
     const corsHeaders = getCorsHeaders(req)
-    
+
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
@@ -276,7 +280,7 @@ serve(async (req: Request) => {
 
         // Create Supabase client with service role to access menu data
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-        
+
         // Create client with user token to verify identity
         const supabaseClient = createClient(
             SUPABASE_URL,
@@ -290,16 +294,38 @@ serve(async (req: Request) => {
             throw new Error('Authentication failed')
         }
 
+        // Multi-tenant: Get organization ID from request or user profile
+        let organizationId = body.organizationId
+        if (!organizationId) {
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('current_organization_id')
+                .eq('id', user.id)
+                .single()
+            organizationId = profile?.current_organization_id
+        }
+        if (!organizationId) {
+            const { data: orgs } = await supabaseAdmin
+                .from('organizations')
+                .select('id')
+                .eq('is_active', true)
+                .limit(1)
+            if (orgs && orgs.length > 0) organizationId = orgs[0].id
+        }
+        if (!organizationId) {
+            throw new Error('Organization context required')
+        }
+
         // SECURITY: Validate cart is not empty
         if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
             throw new Error('Cart is empty')
         }
-        
+
         // SECURITY: Validate cart size
         if (body.items.length > MAX_ITEMS_PER_ORDER) {
             throw new Error(`Order cannot contain more than ${MAX_ITEMS_PER_ORDER} items`)
         }
-        
+
         // SECURITY: Validate each cart item
         for (let i = 0; i < body.items.length; i++) {
             validateCartItem(body.items[i], i)
@@ -319,6 +345,7 @@ serve(async (req: Request) => {
             .from('menu_items')
             .select('id, prezzo, prezzo_scontato, disponibile')
             .in('id', Array.from(menuItemIds))
+            .or(`organization_id.eq.${organizationId},organization_id.is.null`)
 
         if (menuError) {
             console.error('Menu fetch error:', menuError)
@@ -331,25 +358,27 @@ serve(async (req: Request) => {
             if (item.sizeId) sizeIds.add(item.sizeId)
             if (item.secondSizeId) sizeIds.add(item.secondSizeId)
         })
-        
+
         // Fetch size multipliers if sizes are used
         let sizeMultipliers: Record<string, number> = {}
         let sizePriceOverrides: Record<string, Record<string, number | null>> = {}
-        
+
         if (sizeIds.size > 0) {
             const { data: sizes } = await supabaseAdmin
                 .from('sizes_master')
                 .select('id, price_multiplier')
                 .in('id', Array.from(sizeIds))
-            
+                .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+
             sizes?.forEach((s: any) => sizeMultipliers[s.id] = s.price_multiplier ?? 1.0)
-            
+
             const { data: sizeAssignments } = await supabaseAdmin
                 .from('menu_item_sizes')
                 .select('menu_item_id, size_id, price_override')
                 .in('menu_item_id', Array.from(menuItemIds))
                 .in('size_id', Array.from(sizeIds))
-            
+                .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+
             sizeAssignments?.forEach((a: any) => {
                 if (!sizePriceOverrides[a.menu_item_id]) sizePriceOverrides[a.menu_item_id] = {}
                 sizePriceOverrides[a.menu_item_id][a.size_id] = a.price_override
@@ -362,39 +391,41 @@ serve(async (req: Request) => {
             item.extraIngredients?.forEach(ex => allIngredientIds.add(ex.ingredientId))
             item.secondExtraIngredients?.forEach(ex => allIngredientIds.add(ex.ingredientId))
         })
-        
+
         // Fetch all ingredients with their base prices
         let ingredientPrices: Record<string, number> = {}
         let ingredientSizePrices: Record<string, Record<string, number>> = {}
-        
+
         if (allIngredientIds.size > 0) {
             const ids = Array.from(allIngredientIds)
             const { data: ingredients } = await supabaseAdmin
                 .from('ingredients')
                 .select('id, prezzo')
                 .in('id', ids)
-            
+                .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+
             ingredients?.forEach((ing: any) => ingredientPrices[ing.id] = ing.prezzo ?? 0)
-            
+
             // Fetch size-specific ingredient prices if sizes are used
             if (sizeIds.size > 0) {
                 const { data: sizePrices } = await supabaseAdmin
                     .from('ingredient_size_prices')
-                    .select('ingredient_id, size_id, price')
+                    .select('ingredient_id, size_id, prezzo')
                     .in('ingredient_id', ids)
                     .in('size_id', Array.from(sizeIds))
-                
+                    .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+
                 sizePrices?.forEach((sp: any) => {
                     if (!ingredientSizePrices[sp.ingredient_id]) ingredientSizePrices[sp.ingredient_id] = {}
-                    ingredientSizePrices[sp.ingredient_id][sp.size_id] = sp.price
+                    ingredientSizePrices[sp.ingredient_id][sp.size_id] = sp.prezzo
                 })
             }
         }
 
         // Helper: Calculate Part Price
         const calculatePart = (
-            prodId: string, 
-            sizeId: string | undefined, 
+            prodId: string,
+            sizeId: string | undefined,
             extras: { ingredientId: string, quantity: number }[] | undefined
         ): number => {
             const menuItem = menuItems?.find(m => m.id === prodId)
@@ -402,7 +433,7 @@ serve(async (req: Request) => {
             if (!menuItem.disponibile) throw new Error('One or more products are no longer available')
 
             let base = menuItem.prezzo_scontato ?? menuItem.prezzo
-            
+
             if (sizeId) {
                 const override = sizePriceOverrides[prodId]?.[sizeId]
                 if (override !== null && override !== undefined) {
@@ -434,14 +465,14 @@ serve(async (req: Request) => {
                 // SPLIT
                 const p1 = calculatePart(cartItem.menuItemId, cartItem.sizeId, cartItem.extraIngredients)
                 const p2 = calculatePart(cartItem.secondProductId, cartItem.secondSizeId || cartItem.sizeId, cartItem.secondExtraIngredients)
-                
+
                 const rawAverage = (p1 + p2) / 2
                 unitPrice = Math.ceil(rawAverage * 2) / 2.0
             } else {
                 // REGULAR
                 unitPrice = calculatePart(cartItem.menuItemId, cartItem.sizeId, cartItem.extraIngredients)
             }
-            
+
             itemTotal = unitPrice * cartItem.quantity
             calculatedSubtotal += itemTotal
         }
@@ -452,9 +483,10 @@ serve(async (req: Request) => {
             body.orderType ?? 'takeaway',
             calculatedSubtotal, // Pass subtotal for free delivery check
             body.deliveryLatitude,
-            body.deliveryLongitude
+            body.deliveryLongitude,
+            organizationId
         )
-        
+
         const calculatedTotal = calculatedSubtotal + deliveryFee
 
         // Convert to cents for Stripe
@@ -473,9 +505,10 @@ serve(async (req: Request) => {
             amountInCents,
             currency,
             body.customerEmail,
-            { 
-                ...body.metadata, 
+            {
+                ...body.metadata,
                 userId: user.id,
+                organizationId: organizationId || '',  // Multi-tenant
                 calculatedSubtotal: calculatedSubtotal.toFixed(2),
                 calculatedDeliveryFee: deliveryFee.toFixed(2),
                 calculatedTotal: calculatedTotal.toFixed(2)

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/services/database_service.dart';
 import '../core/models/menu_item_model.dart';
 import '../core/utils/logger.dart';
+import 'organization_provider.dart';
 
 part 'menu_provider.g.dart';
 
@@ -18,21 +19,30 @@ class Menu extends _$Menu {
     Logger.debug('Menu provider loading items', tag: 'Menu');
 
     final db = ref.watch(databaseServiceProvider);
+    final orgId = await ref.watch(currentOrganizationProvider.future);
 
-    return await db.getMenuItems(onlyAvailable: true);
+    return await db.getMenuItems(
+      onlyAvailable: true,
+      organizationId: orgId,
+    );
   }
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final db = ref.read(databaseServiceProvider);
-      return await db.getMenuItems(onlyAvailable: true);
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      return await db.getMenuItems(
+        onlyAvailable: true,
+        organizationId: orgId,
+      );
     });
   }
 
   Future<void> createItem(MenuItemModel item) async {
     final db = ref.read(databaseServiceProvider);
-    await db.createMenuItem(item);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await db.createMenuItem(item, organizationId: orgId);
     await refresh();
   }
 

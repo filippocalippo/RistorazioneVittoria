@@ -6,6 +6,7 @@ part 'promotional_banner_model.g.dart';
 @freezed
 class PromotionalBannerModel with _$PromotionalBannerModel {
   const factory PromotionalBannerModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     required String titolo,
     String? descrizione,

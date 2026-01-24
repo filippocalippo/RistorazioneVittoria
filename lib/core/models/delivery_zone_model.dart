@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 /// Model for delivery zones with polygon boundaries
 class DeliveryZoneModel {
   final String id;
+  final String? organizationId;
   final String name;
   final Color color;
   final List<LatLng> polygon;
@@ -14,6 +15,7 @@ class DeliveryZoneModel {
 
   const DeliveryZoneModel({
     required this.id,
+    this.organizationId,
     required this.name,
     required this.color,
     required this.polygon,
@@ -33,14 +35,12 @@ class DeliveryZoneModel {
     final polygonJson = json['polygon'] as List<dynamic>;
     final polygon = polygonJson.map((point) {
       final p = point as Map<String, dynamic>;
-      return LatLng(
-        (p['lat'] as num).toDouble(),
-        (p['lng'] as num).toDouble(),
-      );
+      return LatLng((p['lat'] as num).toDouble(), (p['lng'] as num).toDouble());
     }).toList();
 
     return DeliveryZoneModel(
       id: json['id'] as String,
+      organizationId: json['organization_id'] as String?,
       name: json['name'] as String,
       color: color,
       polygon: polygon,
@@ -54,12 +54,12 @@ class DeliveryZoneModel {
   /// Convert to JSON (for Supabase)
   Map<String, dynamic> toJson() {
     return {
+      'organization_id': organizationId,
       'name': name,
       'color_hex': _colorToHex(color),
-      'polygon': polygon.map((point) => {
-        'lat': point.latitude,
-        'lng': point.longitude,
-      }).toList(),
+      'polygon': polygon
+          .map((point) => {'lat': point.latitude, 'lng': point.longitude})
+          .toList(),
       'display_order': displayOrder,
       'is_active': isActive,
     };
@@ -79,6 +79,7 @@ class DeliveryZoneModel {
   /// Create a copy with updated fields
   DeliveryZoneModel copyWith({
     String? id,
+    String? organizationId,
     String? name,
     Color? color,
     List<LatLng>? polygon,
@@ -89,6 +90,7 @@ class DeliveryZoneModel {
   }) {
     return DeliveryZoneModel(
       id: id ?? this.id,
+      organizationId: organizationId ?? this.organizationId,
       name: name ?? this.name,
       color: color ?? this.color,
       polygon: polygon ?? this.polygon,
@@ -102,7 +104,7 @@ class DeliveryZoneModel {
   /// Validate polygon (at least 3 points, no self-intersection)
   bool get isValidPolygon {
     if (polygon.length < 3) return false;
-    
+
     // Check for self-intersection (simplified check)
     // For production, use a more robust algorithm
     return !_hasSelfIntersection();
@@ -111,24 +113,24 @@ class DeliveryZoneModel {
   /// Check if polygon has self-intersecting edges
   bool _hasSelfIntersection() {
     final n = polygon.length;
-    
+
     for (int i = 0; i < n; i++) {
       final p1 = polygon[i];
       final p2 = polygon[(i + 1) % n];
-      
+
       for (int j = i + 2; j < n; j++) {
         // Skip adjacent edges
         if (j == (i + n - 1) % n) continue;
-        
+
         final p3 = polygon[j];
         final p4 = polygon[(j + 1) % n];
-        
+
         if (_segmentsIntersect(p1, p2, p3, p4)) {
           return true;
         }
       }
     }
-    
+
     return false;
   }
 
@@ -138,23 +140,24 @@ class DeliveryZoneModel {
     final d2 = _direction(p3, p4, p2);
     final d3 = _direction(p1, p2, p3);
     final d4 = _direction(p1, p2, p4);
-    
+
     if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
       return true;
     }
-    
+
     return false;
   }
 
   /// Calculate direction for intersection test
   static double _direction(LatLng p1, LatLng p2, LatLng p3) {
     return (p3.latitude - p1.latitude) * (p2.longitude - p1.longitude) -
-           (p2.latitude - p1.latitude) * (p3.longitude - p1.longitude);
+        (p2.latitude - p1.latitude) * (p3.longitude - p1.longitude);
   }
 
   @override
-  String toString() => 'DeliveryZone(id: $id, name: $name, points: ${polygon.length})';
+  String toString() =>
+      'DeliveryZone(id: $id, name: $name, points: ${polygon.length})';
 
   @override
   bool operator ==(Object other) {

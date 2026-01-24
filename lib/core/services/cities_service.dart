@@ -6,13 +6,15 @@ import '../exceptions/app_exceptions.dart';
 class CitiesService {
   final SupabaseClient _client = SupabaseConfig.client;
 
-  Future<List<AllowedCityModel>> getAllowedCities() async {
+  Future<List<AllowedCityModel>> getAllowedCities({
+    String? organizationId,
+  }) async {
     try {
-      final data = await _client
-          .from('allowed_cities')
-          .select()
-          .eq('attiva', true)
-          .order('ordine');
+      var query = _client.from('allowed_cities').select().eq('attiva', true);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.order('ordine');
 
       return data.map((json) => _parseCityFromJson(json)).toList();
     } on PostgrestException catch (e) {
@@ -20,12 +22,15 @@ class CitiesService {
     }
   }
 
-  Future<List<AllowedCityModel>> getAllCities() async {
+  Future<List<AllowedCityModel>> getAllCities({
+    String? organizationId,
+  }) async {
     try {
-      final data = await _client
-          .from('allowed_cities')
-          .select()
-          .order('ordine');
+      var query = _client.from('allowed_cities').select();
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.order('ordine');
 
       return data.map((json) => _parseCityFromJson(json)).toList();
     } on PostgrestException catch (e) {
@@ -36,6 +41,7 @@ class CitiesService {
   Future<AllowedCityModel> createCity({
     required String nome,
     required String cap,
+    String? organizationId,
     bool attiva = true,
     int ordine = 0,
   }) async {
@@ -43,6 +49,7 @@ class CitiesService {
       final data = await _client
           .from('allowed_cities')
           .insert({
+            if (organizationId != null) 'organization_id': organizationId,
             'nome': nome,
             'cap': cap,
             'attiva': attiva,
@@ -60,15 +67,17 @@ class CitiesService {
   Future<void> updateCity({
     required String cityId,
     required Map<String, dynamic> updates,
+    String? organizationId,
   }) async {
     try {
       final payload = Map<String, dynamic>.from(updates);
       payload['updated_at'] = DateTime.now().toUtc().toIso8601String();
 
-      await _client
-          .from('allowed_cities')
-          .update(payload)
-          .eq('id', cityId);
+      var query = _client.from('allowed_cities').update(payload).eq('id', cityId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      await query;
     } on PostgrestException catch (e) {
       throw DatabaseException('Errore aggiornamento città: ${e.message}');
     }
@@ -76,12 +85,14 @@ class CitiesService {
 
   Future<void> deleteCity({
     required String cityId,
+    String? organizationId,
   }) async {
     try {
-      await _client
-          .from('allowed_cities')
-          .delete()
-          .eq('id', cityId);
+      var query = _client.from('allowed_cities').delete().eq('id', cityId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      await query;
     } on PostgrestException catch (e) {
       throw DatabaseException('Errore eliminazione città: ${e.message}');
     }

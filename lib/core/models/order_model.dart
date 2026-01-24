@@ -8,6 +8,7 @@ part 'order_model.g.dart';
 @freezed
 class OrderModel with _$OrderModel {
   const factory OrderModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     String? clienteId,
     required String numeroOrdine,

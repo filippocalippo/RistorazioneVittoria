@@ -9,6 +9,7 @@ part 'ingredient_size_price_model.g.dart';
 @freezed
 class IngredientSizePriceModel with _$IngredientSizePriceModel {
   const factory IngredientSizePriceModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     @JsonKey(name: 'ingredient_id') required String ingredientId,
     @JsonKey(name: 'size_id') required String sizeId,

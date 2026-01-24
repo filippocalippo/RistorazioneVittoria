@@ -1134,9 +1134,7 @@ class _CashierOrderScreenState extends ConsumerState<CashierOrderScreen> {
               resolvedItem = menuItemsById[topItem.menuItemId];
             }
             // Try Name match
-            if (resolvedItem == null) {
-              resolvedItem = menuItemsByName[topItem.productName.toLowerCase()];
-            }
+            resolvedItem ??= menuItemsByName[topItem.productName.toLowerCase()];
 
             if (resolvedItem != null) {
               allTopItems.add(resolvedItem);

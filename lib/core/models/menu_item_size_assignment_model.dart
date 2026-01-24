@@ -9,6 +9,7 @@ part 'menu_item_size_assignment_model.g.dart';
 @freezed
 class MenuItemSizeAssignmentModel with _$MenuItemSizeAssignmentModel {
   const factory MenuItemSizeAssignmentModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     @JsonKey(name: 'menu_item_id') required String menuItemId,
     @JsonKey(name: 'size_id') required String sizeId,

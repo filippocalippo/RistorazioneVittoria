@@ -102,15 +102,23 @@ class InventoryService {
     required String sizeId,
     String? productId,
     required double quantity,
+    String? organizationId,
   }) async {
     // Upsert based on (ingredient_id, size_id, product_id)
-    await _supabase.from('ingredient_consumption_rules').upsert({
+    final payload = <String, dynamic>{
       'ingredient_id': ingredientId,
       'size_id': sizeId,
       'product_id': productId,
       'quantity': quantity,
       'updated_at': DateTime.now().toIso8601String(),
-    }, onConflict: 'ingredient_id,size_id,product_id');
+    };
+    if (organizationId != null) {
+      payload['organization_id'] = organizationId;
+    }
+    await _supabase.from('ingredient_consumption_rules').upsert(
+      payload,
+      onConflict: 'ingredient_id,size_id,product_id',
+    );
   }
 
   /// Deletes a consumption rule.

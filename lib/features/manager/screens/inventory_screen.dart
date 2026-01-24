@@ -633,9 +633,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   void _onSort(int columnIndex) {
     setState(() {
-      if (_sortColumnIndex == columnIndex)
+      if (_sortColumnIndex == columnIndex) {
         _sortAscending = !_sortAscending;
-      else {
+      } else {
         _sortColumnIndex = columnIndex;
         _sortAscending = true;
       }
@@ -861,7 +861,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     .read(ingredientsProvider.notifier)
                     .toggleActive(ingredient.id, value),
                 activeTrackColor: AppColors.success,
-                activeColor: Colors.white,
+                activeThumbColor: Colors.white,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
@@ -941,7 +941,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             .read(ingredientsProvider.notifier)
                             .toggleActive(ingredient.id, value),
                         activeTrackColor: AppColors.success,
-                        activeColor: Colors.white,
+                        activeThumbColor: Colors.white,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ],
@@ -1092,7 +1092,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ing.stockQuantity <= ing.lowStockThreshold * 0.2) {
       return 'Critico';
     }
-    if (ing.lowStockThreshold > 0 && ing.stockQuantity <= ing.lowStockThreshold) {
+    if (ing.lowStockThreshold > 0 &&
+        ing.stockQuantity <= ing.lowStockThreshold) {
       return 'Bassa';
     }
     return 'OK';

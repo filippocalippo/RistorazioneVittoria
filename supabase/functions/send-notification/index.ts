@@ -171,7 +171,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${record.destinatario_id}&select=fcm_token`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${record.user_id}&select=fcm_token`,
       {
         headers: {
           'apikey': supabaseKey,
@@ -183,7 +183,7 @@ serve(async (req) => {
     const profiles = await profileResponse.json()
     
     if (!profiles || profiles.length === 0) {
-      console.log('No profile found for user:', record.destinatario_id)
+      console.log('No profile found for user:', record.user_id)
       return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 })
     }
 
@@ -202,7 +202,8 @@ serve(async (req) => {
       data: {
         tipo: record.tipo,
         notification_id: record.id,
-        ...(record.dati || {})
+        organization_id: record.organization_id,
+        ...(record.data || {})
       }
     })
 

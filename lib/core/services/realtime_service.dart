@@ -14,39 +14,37 @@ class RealtimeService {
   Stream<List<OrderModel>> watchOrdersByStatus({
     required List<OrderStatus> statuses,
     String? clienteId,
+    String? organizationId,
     int? limit = 50,
   }) async* {
-    // Keep last good snapshot to avoid breaking UI on transient errors
     List<OrderModel> lastGoodSnapshot = const [];
 
-    // Build the stream query
-    // SECURITY: Apply cliente_id filter at stream level when provided
-    // This ensures customers only receive their own orders in realtime
     Stream<List<Map<String, dynamic>>> streamToListen;
-    
+
     if (clienteId != null) {
-      // Customer stream: filter by cliente_id for security
-      var query = _client
+      var streamQuery = _client
           .from(AppConstants.tableOrdini)
           .stream(primaryKey: const ['id'])
-          .eq('cliente_id', clienteId)
-          .order('created_at', ascending: false);
-      
-      if (limit != null) {
-        query = query.limit(limit);
-      }
-      streamToListen = query;
+          .eq('cliente_id', clienteId);
+
+      streamToListen = streamQuery
+          .order('created_at', ascending: false)
+          .limit(limit ?? 50);
     } else {
-      // Staff stream: RLS handles access control at database level
-      var query = _client
+      final querySteps = _client
           .from(AppConstants.tableOrdini)
-          .stream(primaryKey: const ['id'])
-          .order('created_at', ascending: false);
-      
-      if (limit != null) {
-        query = query.limit(limit);
+          .stream(primaryKey: const ['id']);
+
+      if (organizationId != null) {
+        streamToListen = querySteps
+            .eq('organization_id', organizationId)
+            .order('created_at', ascending: false)
+            .limit(limit ?? 50);
+      } else {
+        streamToListen = querySteps
+            .order('created_at', ascending: false)
+            .limit(limit ?? 50);
       }
-      streamToListen = query;
     }
 
     await for (final ordersData in streamToListen) {
@@ -57,26 +55,31 @@ class RealtimeService {
           continue;
         }
 
-        // Fetch full order data with items for each order
-        // Stream doesn't support joins, so we need to fetch separately
         final orderIds = ordersData.map((o) => o['id'] as String).toList();
 
-        final fullOrdersData = await _client
+        var fullQueryBase = _client
             .from(AppConstants.tableOrdini)
-            .select('*, ordini_items(*)')
-            .inFilter('id', orderIds)
-            .order('created_at', ascending: false);
+            .select('*, ordini_items(*)');
 
-        // Parse all orders (let provider handle status filtering)
+        fullQueryBase = fullQueryBase.inFilter('id', orderIds);
+
+        if (organizationId != null) {
+          fullQueryBase = fullQueryBase.eq('organization_id', organizationId);
+        }
+
+        final fullOrdersData = await fullQueryBase.order(
+          'created_at',
+          ascending: false,
+        );
+
         final parsed = <OrderModel>[];
-        for (final json in fullOrdersData) {
+        for (final json in (fullOrdersData as List)) {
           try {
             final order = ModelParsers.orderFromJson(
-              Map<String, dynamic>.from(json),
+              Map<String, dynamic>.from(json as Map),
             );
             parsed.add(order);
           } catch (_) {
-            // Skip malformed orders rather than crashing the stream
             continue;
           }
         }
@@ -88,49 +91,47 @@ class RealtimeService {
         lastGoodSnapshot = filtered;
         yield filtered;
       } catch (_) {
-        // Any unexpected error: yield last known good data instead of erroring
         yield lastGoodSnapshot;
-        // continue to next iteration; the stream stays alive
         continue;
       }
     }
   }
 
-  /// Stream di ordini per cucina (confirmed, preparing)
-  /// Staff-only stream - RLS handles access control
   Stream<List<OrderModel>> watchKitchenOrders() {
     return watchOrdersByStatus(
       statuses: [OrderStatus.confirmed, OrderStatus.preparing],
     );
   }
 
-  /// Stream di ordini per delivery (ready, delivering)
-  /// Staff-only stream - RLS handles access control
   Stream<List<OrderModel>> watchDeliveryOrders() {
     return watchOrdersByStatus(
       statuses: [OrderStatus.ready, OrderStatus.delivering],
     );
   }
 
-  /// Stream di un singolo ordine (per tracking cliente)
-  Stream<OrderModel?> watchOrder(String orderId) async* {
-    await for (final ordersData
-        in _client
-            .from(AppConstants.tableOrdini)
-            .stream(primaryKey: ['id'])
-            .eq('id', orderId)) {
+  Stream<OrderModel?> watchOrder(
+    String orderId, {
+    String? organizationId,
+  }) async* {
+    var streamQuery = _client
+        .from(AppConstants.tableOrdini)
+        .stream(primaryKey: const ['id'])
+        .eq('id', orderId);
+
+    await for (final ordersData in streamQuery) {
       if (ordersData.isEmpty) {
         yield null;
         continue;
       }
 
-      // Fetch full order data with items
-      // Stream doesn't support joins, so we need to fetch separately
-      final fullOrderData = await _client
+      var fullOrderQuery = _client
           .from(AppConstants.tableOrdini)
           .select('*, ordini_items(*)')
-          .eq('id', orderId)
-          .maybeSingle();
+          .eq('id', orderId);
+      if (organizationId != null) {
+        fullOrderQuery = fullOrderQuery.eq('organization_id', organizationId);
+      }
+      final fullOrderData = await fullOrderQuery.maybeSingle();
 
       if (fullOrderData == null) {
         yield null;
@@ -138,13 +139,11 @@ class RealtimeService {
       }
 
       yield ModelParsers.orderFromJson(
-        Map<String, dynamic>.from(fullOrderData),
+        Map<String, dynamic>.from(fullOrderData as Map),
       );
     }
   }
 
-  /// Stream di ordini attivi per un cliente specifico
-  /// SECURITY: clienteId is REQUIRED for customer-facing order tracking
   Stream<List<OrderModel>> watchActiveOrdersForCustomer(String clienteId) {
     return watchOrdersByStatus(
       clienteId: clienteId,
@@ -159,8 +158,6 @@ class RealtimeService {
     );
   }
 
-  /// Stream di ordini attivi (for staff/manager use)
-  /// @deprecated Use watchActiveOrdersForCustomer for customer-facing streams
   Stream<List<OrderModel>> watchActiveOrders() {
     return watchOrdersByStatus(
       statuses: [
@@ -169,8 +166,7 @@ class RealtimeService {
         OrderStatus.preparing,
         OrderStatus.ready,
         OrderStatus.delivering,
-        OrderStatus
-            .completed, // Include completed to match customer orders provider
+        OrderStatus.completed,
       ],
     );
   }

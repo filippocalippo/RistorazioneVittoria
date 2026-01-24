@@ -11,6 +11,7 @@ class IngredientModel with _$IngredientModel {
   const IngredientModel._();
 
   const factory IngredientModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     required String nome,
     String? descrizione,

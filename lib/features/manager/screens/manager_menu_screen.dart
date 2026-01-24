@@ -11,6 +11,7 @@ import '../../../providers/categories_provider.dart';
 import '../../../core/models/category_model.dart';
 import '../../../core/services/bulk_menu_import_service.dart';
 import '../../../core/services/json_menu_import_service.dart';
+import '../../../providers/organization_provider.dart';
 import '../widgets/product_edit_modal.dart';
 import '../widgets/categories_modal_v2.dart';
 
@@ -1246,7 +1247,8 @@ class _ManagerMenuScreenState extends ConsumerState<ManagerMenuScreen> {
         );
       }
 
-      final service = BulkMenuImportService();
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      final service = BulkMenuImportService(organizationId: orgId);
       final result = await service.importFromText(text);
 
       if (mounted) Navigator.pop(context);
@@ -1305,7 +1307,8 @@ class _ManagerMenuScreenState extends ConsumerState<ManagerMenuScreen> {
         );
       }
 
-      final service = JsonMenuImportService();
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      final service = JsonMenuImportService(organizationId: orgId);
       final result = await service.importFromJson(jsonText);
 
       if (mounted) Navigator.pop(context);

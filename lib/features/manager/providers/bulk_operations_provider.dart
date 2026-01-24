@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../providers/product_included_ingredients_provider.dart';
 import '../../../providers/product_extra_ingredients_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../models/bulk_operation_state.dart';
 
 part 'bulk_operations_provider.g.dart';
@@ -245,11 +246,13 @@ class BulkOperations extends _$BulkOperations {
     List<String> productIds,
     List<String> ingredientIds,
   ) async {
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final records = <Map<String, dynamic>>[];
 
     for (final productId in productIds) {
       for (final ingredientId in ingredientIds) {
         records.add({
+          if (orgId != null) 'organization_id': orgId,
           'menu_item_id': productId,
           'ingredient_id': ingredientId,
           'ordine': 0,
@@ -281,11 +284,13 @@ class BulkOperations extends _$BulkOperations {
     SupabaseClient supabase,
     List<String> productIds,
   ) async {
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final records = <Map<String, dynamic>>[];
 
     for (final productId in productIds) {
       for (final ingredient in state.selectedIngredients) {
         records.add({
+          if (orgId != null) 'organization_id': orgId,
           'menu_item_id': productId,
           'ingredient_id': ingredient.ingredientId,
           'price_override': ingredient.priceOverride,

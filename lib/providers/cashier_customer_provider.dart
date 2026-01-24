@@ -4,6 +4,7 @@ import '../core/models/cashier_customer_model.dart';
 import '../core/services/database_service.dart';
 import '../core/services/google_geocoding_service.dart';
 import '../core/utils/logger.dart';
+import 'organization_provider.dart';
 
 /// Provider for the DatabaseService instance
 final _dbServiceProvider = Provider<DatabaseService>(
@@ -24,7 +25,11 @@ final cashierCustomerSearchProvider =
       }
 
       final db = ref.read(_dbServiceProvider);
-      return db.searchCashierCustomers(query);
+      final orgId = await ref.watch(currentOrganizationProvider.future);
+      return db.searchCashierCustomers(
+        query,
+        organizationId: orgId,
+      );
     });
 
 /// Currently selected customer from suggestions
@@ -51,8 +56,9 @@ class CustomerProcessingResult {
 /// Service class for intelligent customer profile management
 class CashierCustomerService {
   final DatabaseService _db;
+  final String? _organizationId;
 
-  CashierCustomerService(this._db);
+  CashierCustomerService(this._db, this._organizationId);
 
   /// Process customer data during order creation
   /// Returns the customer ID and geocoded coordinates to use in the order
@@ -74,6 +80,7 @@ class CashierCustomerService {
       final existingCustomer = await _db.findMatchingCustomer(
         nome: nome,
         telefono: telefono,
+        organizationId: _organizationId,
       );
 
       if (existingCustomer != null) {
@@ -200,6 +207,7 @@ class CashierCustomerService {
         latitude: updates['latitude'] as double?,
         longitude: updates['longitude'] as double?,
         updateGeocodedAt: updates['updateGeocodedAt'] as bool?,
+        organizationId: _organizationId,
       );
     }
 
@@ -208,6 +216,7 @@ class CashierCustomerService {
       await _db.incrementCustomerOrderStats(
         customerId: customer.id,
         orderTotal: orderTotal,
+        organizationId: _organizationId,
       );
     }
 
@@ -256,6 +265,7 @@ class CashierCustomerService {
       cap: cap ?? '97019',
       latitude: latitude,
       longitude: longitude,
+      organizationId: _organizationId,
     );
 
     // Update stats for first order
@@ -263,6 +273,7 @@ class CashierCustomerService {
       await _db.incrementCustomerOrderStats(
         customerId: customer.id,
         orderTotal: orderTotal,
+        organizationId: _organizationId,
       );
     }
 
@@ -304,7 +315,8 @@ class CashierCustomerService {
 /// Provider for the customer service
 final cashierCustomerServiceProvider = Provider<CashierCustomerService>((ref) {
   final db = ref.read(_dbServiceProvider);
-  return CashierCustomerService(db);
+  final orgId = ref.watch(currentOrganizationProvider).value;
+  return CashierCustomerService(db, orgId);
 });
 
 /// Provider to process customer for order and get customer ID + coordinates
@@ -365,7 +377,8 @@ class CustomerOrderParams {
 final allCashierCustomersProvider =
     FutureProvider.autoDispose<List<CashierCustomerModel>>((ref) async {
       final db = ref.read(_dbServiceProvider);
-      return db.getAllCashierCustomers();
+      final orgId = await ref.watch(currentOrganizationProvider.future);
+      return db.getAllCashierCustomers(organizationId: orgId);
     });
 
 /// State for cached customers list
@@ -416,11 +429,13 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
 
   Future<CashierCustomersState> _fetchInitial() async {
     final db = ref.read(_dbServiceProvider);
+    final orgId = await ref.watch(currentOrganizationProvider.future);
     final items = await db.getAllCashierCustomers(
       limit: _pageSize,
       offset: 0,
       sortBy: 'ordini_count',
       sortAscending: false,
+      organizationId: orgId,
     );
 
     return CashierCustomersState(
@@ -443,6 +458,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final db = ref.read(_dbServiceProvider);
+      final orgId = await ref.read(currentOrganizationProvider.future);
       // Reset sort when searching for best relevance, or keep it?
       // Let's keep current sort preference unless user changes it.
       final currentSort = state.value?.sortColumn ?? 'ordini_count';
@@ -454,6 +470,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
         offset: 0,
         sortBy: currentSort,
         sortAscending: currentAsc,
+        organizationId: orgId,
       );
 
       return CashierCustomersState(
@@ -495,6 +512,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final db = ref.read(_dbServiceProvider);
+      final orgId = await ref.read(currentOrganizationProvider.future);
 
       final items = await db.getAllCashierCustomers(
         searchQuery: currentState.searchQuery,
@@ -502,6 +520,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
         offset: 0,
         sortBy: column,
         sortAscending: nextAscending,
+        organizationId: orgId,
       );
 
       return currentState.copyWith(
@@ -529,6 +548,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
 
     try {
       final db = ref.read(_dbServiceProvider);
+      final orgId = await ref.read(currentOrganizationProvider.future);
       final currentCount = currentState.items.length;
 
       final newItems = await db.getAllCashierCustomers(
@@ -537,6 +557,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
         offset: currentCount,
         sortBy: currentState.sortColumn,
         sortAscending: currentState.sortAscending,
+        organizationId: orgId,
       );
 
       state = AsyncValue.data(
@@ -573,6 +594,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
     String? note,
   }) async {
     final db = ref.read(_dbServiceProvider);
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final updated = await db.updateCashierCustomer(
       customerId: customerId,
       nome: nome,
@@ -585,6 +607,7 @@ class CashierCustomersNotifier extends AsyncNotifier<CashierCustomersState> {
       longitude: longitude,
       updateGeocodedAt: updateGeocodedAt,
       note: note,
+      organizationId: orgId,
     );
 
     // Update local state
@@ -611,5 +634,9 @@ final cashierCustomersNotifierProvider =
 final cashierCustomerOrdersProvider = FutureProvider.family
     .autoDispose<List<dynamic>, String>((ref, customerId) async {
       final db = ref.read(_dbServiceProvider);
-      return db.getOrdersByCashierCustomerId(customerId);
+      final orgId = await ref.watch(currentOrganizationProvider.future);
+      return db.getOrdersByCashierCustomerId(
+        customerId,
+        organizationId: orgId,
+      );
     });

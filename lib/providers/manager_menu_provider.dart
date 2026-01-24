@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/menu_item_model.dart';
 import '../core/services/database_service.dart';
 import '../core/services/storage_service.dart';
+import 'organization_provider.dart';
 
 part 'manager_menu_provider.g.dart';
 
@@ -12,8 +13,12 @@ class ManagerMenu extends _$ManagerMenu {
   @override
   Future<List<MenuItemModel>> build() async {
     final db = DatabaseService();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
     // Manager sees all items, including unavailable ones
-    return await db.getMenuItems(onlyAvailable: false);
+    return await db.getMenuItems(
+      onlyAvailable: false,
+      organizationId: orgId,
+    );
   }
 
   /// Refresh menu list
@@ -25,7 +30,8 @@ class ManagerMenu extends _$ManagerMenu {
   /// Create new menu item
   Future<MenuItemModel> createItem(MenuItemModel item) async {
     final db = DatabaseService();
-    final created = await db.createMenuItem(item);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    final created = await db.createMenuItem(item, organizationId: orgId);
 
     // Update state locally to avoid full reload of all items
     state = state.when(

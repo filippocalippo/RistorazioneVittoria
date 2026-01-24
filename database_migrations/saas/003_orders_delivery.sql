@@ -24,45 +24,30 @@ CREATE TABLE IF NOT EXISTS public.allowed_cities (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     
-    UNIQUE(nome, cap)
+    UNIQUE(organization_id, nome, cap)
 );
 
 CREATE INDEX IF NOT EXISTS idx_allowed_cities_org ON allowed_cities(organization_id);
 CREATE INDEX IF NOT EXISTS idx_allowed_cities_attiva ON allowed_cities(attiva) WHERE attiva = true;
 
 -- ---------------------------------------------------------------------------
--- 2. DELIVERY_ZONES (Zone-based delivery fees)
+-- 2. DELIVERY_ZONES (Polygon-based zones for delivery maps)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.delivery_zones (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    nome TEXT NOT NULL,
-    tipo TEXT NOT NULL DEFAULT 'zone' CHECK (tipo IN ('zone', 'radius')),
-    
-    -- Zone-based settings
-    cities TEXT[] DEFAULT ARRAY[]::TEXT[],
-    
-    -- Radius-based settings
-    radius_km NUMERIC,
-    center_lat NUMERIC,
-    center_lng NUMERIC,
-    
-    -- Pricing
-    costo_consegna NUMERIC(10,2) DEFAULT 0,
-    ordine_minimo NUMERIC(10,2) DEFAULT 0,
-    consegna_gratuita_sopra NUMERIC(10,2),
-    
-    -- Availability
-    attiva BOOLEAN DEFAULT true,
-    ordine INTEGER DEFAULT 0,
-    
+    name TEXT NOT NULL,
+    color_hex TEXT NOT NULL DEFAULT '#FF6B35',
+    polygon JSONB NOT NULL,                                                  -- [{lat, lng}, ...]
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_delivery_zones_org ON delivery_zones(organization_id);
-CREATE INDEX IF NOT EXISTS idx_delivery_zones_attiva ON delivery_zones(attiva) WHERE attiva = true;
+CREATE INDEX IF NOT EXISTS idx_delivery_zones_active ON delivery_zones(is_active) WHERE is_active = true;
 
 -- ---------------------------------------------------------------------------
 -- 3. USER_ADDRESSES (Customer saved addresses)
@@ -99,6 +84,13 @@ CREATE TABLE IF NOT EXISTS public.cashier_customers (
     indirizzo TEXT,
     citta TEXT,
     cap TEXT,
+    provincia TEXT,
+    latitude NUMERIC,
+    longitude NUMERIC,
+    geocoded_at TIMESTAMPTZ,
+    ordini_count INTEGER DEFAULT 0,
+    ultimo_ordine_at TIMESTAMPTZ,
+    totale_speso NUMERIC(10,2) DEFAULT 0,
     note TEXT,
     
     -- Normalized fields for search
@@ -141,13 +133,16 @@ CREATE TABLE IF NOT EXISTS public.ordini (
     -- Customer info
     cliente_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     cashier_customer_id UUID REFERENCES cashier_customers(id) ON DELETE SET NULL,
+    nome_cliente TEXT NOT NULL,
+    telefono_cliente TEXT NOT NULL,
+    email_cliente TEXT,
     
     -- Order identification
     numero_ordine TEXT,                                                      -- e.g., "20260124-001"
     
     -- Type and status
-    tipo TEXT NOT NULL CHECK (tipo IN ('delivery', 'takeaway', 'locale', 'counter')),
-    stato TEXT NOT NULL DEFAULT 'pending' CHECK (stato IN ('pending', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'completed', 'cancelled')),
+    tipo TEXT NOT NULL CHECK (tipo IN ('delivery', 'takeaway', 'dine_in')),
+    stato TEXT NOT NULL DEFAULT 'pending' CHECK (stato IN ('pending', 'confirmed', 'preparing', 'ready', 'delivering', 'completed', 'cancelled')),
     
     -- Delivery info
     indirizzo_consegna TEXT,
@@ -158,9 +153,8 @@ CREATE TABLE IF NOT EXISTS public.ordini (
     longitude_consegna NUMERIC,
     
     -- Scheduling
-    data_richiesta DATE,
-    orario_richiesto TIME,
-    orario_consegna_stimato TIMESTAMPTZ,
+    slot_prenotato_start TIMESTAMPTZ,
+    tempo_stimato_minuti INTEGER,
     
     -- Pricing
     subtotale NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -169,8 +163,9 @@ CREATE TABLE IF NOT EXISTS public.ordini (
     totale NUMERIC(10,2) NOT NULL DEFAULT 0,
     
     -- Payment
-    metodo_pagamento TEXT CHECK (metodo_pagamento IN ('cash', 'card', 'online', 'pos')),
+    metodo_pagamento TEXT CHECK (metodo_pagamento IN ('cash', 'card', 'online')),
     pagato BOOLEAN DEFAULT false,
+    is_pagato_printed BOOLEAN DEFAULT false,
     
     -- Assignment
     assegnato_cucina_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
@@ -183,7 +178,18 @@ CREATE TABLE IF NOT EXISTS public.ordini (
     
     -- Metadata
     note TEXT,
+    valutazione INTEGER,
+    recensione TEXT,
+    zone TEXT,
     source TEXT DEFAULT 'app' CHECK (source IN ('app', 'web', 'pos', 'phone')),
+    
+    -- Status timestamps
+    confermato_at TIMESTAMPTZ,
+    preparazione_at TIMESTAMPTZ,
+    pronto_at TIMESTAMPTZ,
+    in_consegna_at TIMESTAMPTZ,
+    completato_at TIMESTAMPTZ,
+    cancellato_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -194,7 +200,7 @@ CREATE INDEX IF NOT EXISTS idx_ordini_cliente ON ordini(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ordini_cashier_customer ON ordini(cashier_customer_id);
 CREATE INDEX IF NOT EXISTS idx_ordini_stato ON ordini(stato);
 CREATE INDEX IF NOT EXISTS idx_ordini_tipo ON ordini(tipo);
-CREATE INDEX IF NOT EXISTS idx_ordini_data_richiesta ON ordini(data_richiesta);
+CREATE INDEX IF NOT EXISTS idx_ordini_slot_prenotato ON ordini(slot_prenotato_start);
 CREATE INDEX IF NOT EXISTS idx_ordini_created_at ON ordini(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ordini_numero ON ordini(numero_ordine);
 CREATE INDEX IF NOT EXISTS idx_ordini_assegnato_cucina ON ordini(assegnato_cucina_id);
@@ -215,26 +221,14 @@ CREATE TABLE IF NOT EXISTS public.ordini_items (
     nome_prodotto TEXT NOT NULL,
     prezzo_unitario NUMERIC(10,2) NOT NULL,
     
-    -- Size selection
-    size_id UUID REFERENCES sizes_master(id) ON DELETE SET NULL,
-    size_nome TEXT,
-    
     -- Quantity
     quantita INTEGER NOT NULL DEFAULT 1,
     
     -- Customizations (JSONB for flexibility)
-    ingredients_removed JSONB DEFAULT '[]'::jsonb,                           -- [{id, nome}]
-    extras_added JSONB DEFAULT '[]'::jsonb,                                  -- [{id, nome, prezzo, quantita}]
-    
-    -- Pizza halves (for divisioni)
-    mezzo_sinistro_id UUID REFERENCES menu_items(id) ON DELETE SET NULL,
-    mezzo_sinistro_nome TEXT,
-    mezzo_destro_id UUID REFERENCES menu_items(id) ON DELETE SET NULL,
-    mezzo_destro_nome TEXT,
+    varianti JSONB DEFAULT '{}'::jsonb,
     
     -- Line totals
-    prezzo_extras NUMERIC(10,2) DEFAULT 0,
-    prezzo_totale NUMERIC(10,2) NOT NULL,
+    subtotale NUMERIC(10,2) NOT NULL,
     
     note TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
@@ -245,22 +239,27 @@ CREATE INDEX IF NOT EXISTS idx_ordini_items_ordine ON ordini_items(ordine_id);
 CREATE INDEX IF NOT EXISTS idx_ordini_items_menu_item ON ordini_items(menu_item_id);
 
 -- ---------------------------------------------------------------------------
--- 8. ORDER_REMINDERS (Scheduled order notifications)
+-- 8. ORDER_REMINDERS (Manager task reminders per order)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.order_reminders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     ordine_id UUID NOT NULL REFERENCES ordini(id) ON DELETE CASCADE,
-    reminder_time TIMESTAMPTZ NOT NULL,
-    sent BOOLEAN DEFAULT false,
-    sent_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now()
+    titolo TEXT NOT NULL,
+    descrizione TEXT,
+    priorita TEXT DEFAULT 'normal' CHECK (priorita IN ('low', 'normal', 'high', 'urgent')),
+    scadenza TIMESTAMPTZ,
+    completato BOOLEAN DEFAULT false,
+    completato_at TIMESTAMPTZ,
+    created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_order_reminders_org ON order_reminders(organization_id);
 CREATE INDEX IF NOT EXISTS idx_order_reminders_ordine ON order_reminders(ordine_id);
-CREATE INDEX IF NOT EXISTS idx_order_reminders_pending ON order_reminders(reminder_time, sent) WHERE sent = false;
+CREATE INDEX IF NOT EXISTS idx_order_reminders_pending ON order_reminders(scadenza, completato) WHERE completato = false;
 
 -- ---------------------------------------------------------------------------
 -- 9. NOTIFICHE (Push notifications log)
@@ -321,6 +320,11 @@ CREATE TRIGGER update_cashier_customers_updated_at
 DROP TRIGGER IF EXISTS update_ordini_updated_at ON ordini;
 CREATE TRIGGER update_ordini_updated_at
     BEFORE UPDATE ON ordini
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_order_reminders_updated_at ON order_reminders;
+CREATE TRIGGER update_order_reminders_updated_at
+    BEFORE UPDATE ON order_reminders
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ---------------------------------------------------------------------------
@@ -599,25 +603,43 @@ ALTER TABLE notifiche ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can view active cities" ON allowed_cities;
 CREATE POLICY "Anyone can view active cities" ON allowed_cities
     FOR SELECT TO authenticated
-    USING (attiva = true OR is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND (attiva = true OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Managers can manage cities" ON allowed_cities;
 CREATE POLICY "Managers can manage cities" ON allowed_cities
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === DELIVERY_ZONES ===
 DROP POLICY IF EXISTS "Anyone can view active zones" ON delivery_zones;
 CREATE POLICY "Anyone can view active zones" ON delivery_zones
     FOR SELECT TO authenticated
-    USING (attiva = true OR is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND (is_active = true OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Managers can manage zones" ON delivery_zones;
 CREATE POLICY "Managers can manage zones" ON delivery_zones
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === USER_ADDRESSES ===
 DROP POLICY IF EXISTS "Users can manage own addresses" ON user_addresses;
@@ -629,97 +651,167 @@ CREATE POLICY "Users can manage own addresses" ON user_addresses
 DROP POLICY IF EXISTS "Staff can view all addresses" ON user_addresses;
 CREATE POLICY "Staff can view all addresses" ON user_addresses
     FOR SELECT TO authenticated
-    USING (is_staff());
+    USING (
+        is_staff()
+        AND EXISTS (
+            SELECT 1 FROM allowed_cities ac
+            WHERE ac.id = user_addresses.allowed_city_id
+            AND ac.organization_id = get_current_organization_id()
+        )
+    );
 
 -- === CASHIER_CUSTOMERS ===
 DROP POLICY IF EXISTS "Staff can manage cashier customers" ON cashier_customers;
 CREATE POLICY "Staff can manage cashier customers" ON cashier_customers
     FOR ALL TO authenticated
-    USING (is_staff())
-    WITH CHECK (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 -- === DAILY_ORDER_COUNTERS ===
 DROP POLICY IF EXISTS "Staff can view counters" ON daily_order_counters;
 CREATE POLICY "Staff can view counters" ON daily_order_counters
     FOR SELECT TO authenticated
-    USING (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 -- === ORDINI ===
 DROP POLICY IF EXISTS "Users can view own orders" ON ordini;
 CREATE POLICY "Users can view own orders" ON ordini
     FOR SELECT TO authenticated
-    USING (cliente_id = auth.uid());
+    USING (
+        cliente_id = auth.uid()
+        AND organization_id = get_current_organization_id()
+    );
 
 DROP POLICY IF EXISTS "Staff can view all orders" ON ordini;
 CREATE POLICY "Staff can view all orders" ON ordini
     FOR SELECT TO authenticated
-    USING (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 DROP POLICY IF EXISTS "Users can create orders" ON ordini;
 CREATE POLICY "Users can create orders" ON ordini
     FOR INSERT TO authenticated
-    WITH CHECK (cliente_id = auth.uid() OR is_staff());
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND (cliente_id = auth.uid() OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Staff can update orders" ON ordini;
 CREATE POLICY "Staff can update orders" ON ordini
     FOR UPDATE TO authenticated
-    USING (is_staff())
-    WITH CHECK (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 DROP POLICY IF EXISTS "Managers can delete orders" ON ordini;
 CREATE POLICY "Managers can delete orders" ON ordini
     FOR DELETE TO authenticated
-    USING (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === ORDINI_ITEMS ===
 DROP POLICY IF EXISTS "Users can view own order items" ON ordini_items;
 CREATE POLICY "Users can view own order items" ON ordini_items
     FOR SELECT TO authenticated
     USING (
-        EXISTS (SELECT 1 FROM ordini o WHERE o.id = ordine_id AND (o.cliente_id = auth.uid() OR is_staff()))
+        organization_id = get_current_organization_id()
+        AND EXISTS (
+            SELECT 1 FROM ordini o
+            WHERE o.id = ordine_id
+            AND o.organization_id = get_current_organization_id()
+            AND (o.cliente_id = auth.uid() OR is_staff())
+        )
     );
 
 DROP POLICY IF EXISTS "Staff can manage order items" ON ordini_items;
 CREATE POLICY "Staff can manage order items" ON ordini_items
     FOR ALL TO authenticated
-    USING (is_staff())
-    WITH CHECK (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 DROP POLICY IF EXISTS "Users can create own order items" ON ordini_items;
 CREATE POLICY "Users can create own order items" ON ordini_items
     FOR INSERT TO authenticated
     WITH CHECK (
-        EXISTS (SELECT 1 FROM ordini o WHERE o.id = ordine_id AND o.cliente_id = auth.uid())
+        organization_id = get_current_organization_id()
+        AND EXISTS (
+            SELECT 1 FROM ordini o
+            WHERE o.id = ordine_id
+            AND o.organization_id = get_current_organization_id()
+            AND o.cliente_id = auth.uid()
+        )
     );
 
 -- === ORDER_REMINDERS ===
 DROP POLICY IF EXISTS "Staff can manage reminders" ON order_reminders;
 CREATE POLICY "Staff can manage reminders" ON order_reminders
     FOR ALL TO authenticated
-    USING (is_staff())
-    WITH CHECK (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 -- === NOTIFICHE ===
 DROP POLICY IF EXISTS "Users can view own notifications" ON notifiche;
 CREATE POLICY "Users can view own notifications" ON notifiche
     FOR SELECT TO authenticated
-    USING (user_id = auth.uid());
+    USING (
+        user_id = auth.uid()
+        AND organization_id = get_current_organization_id()
+    );
 
 DROP POLICY IF EXISTS "Users can update own notifications" ON notifiche;
 CREATE POLICY "Users can update own notifications" ON notifiche
     FOR UPDATE TO authenticated
-    USING (user_id = auth.uid())
-    WITH CHECK (user_id = auth.uid());
+    USING (
+        user_id = auth.uid()
+        AND organization_id = get_current_organization_id()
+    )
+    WITH CHECK (
+        user_id = auth.uid()
+        AND organization_id = get_current_organization_id()
+    );
 
 DROP POLICY IF EXISTS "System can insert notifications" ON notifiche;
 CREATE POLICY "System can insert notifications" ON notifiche
     FOR INSERT TO authenticated
-    WITH CHECK (true);
+    WITH CHECK (organization_id = get_current_organization_id());
 
 DROP POLICY IF EXISTS "Staff can view all notifications" ON notifiche;
 CREATE POLICY "Staff can view all notifications" ON notifiche
     FOR SELECT TO authenticated
-    USING (is_staff());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_staff()
+    );
 
 COMMIT;
 

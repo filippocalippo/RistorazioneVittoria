@@ -8,6 +8,7 @@ part 'kitchen_management_settings.g.dart';
 @freezed
 class KitchenManagementSettings with _$KitchenManagementSettings {
   const factory KitchenManagementSettings({
+    @JsonKey(name: 'organization_id') String? organizationId,
     @JsonKey(name: 'stampa_automatica_ordini')
     @Default(false)
     bool stampaAutomaticaOrdini,

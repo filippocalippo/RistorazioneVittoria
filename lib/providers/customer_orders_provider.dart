@@ -9,6 +9,7 @@ import '../core/services/realtime_service.dart';
 import '../core/utils/enums.dart';
 import '../core/utils/logger.dart';
 import 'auth_provider.dart';
+import 'organization_provider.dart';
 
 /// Active order statuses considered for customer tracking.
 /// Completed orders are included but filtered out if older than 12 hours.
@@ -27,13 +28,15 @@ const List<OrderStatus> _terminalOrderStatuses = [
 ];
 
 /// Provider that exposes the customer's in-progress orders with realtime updates.
-final customerOrdersProvider = AutoDisposeAsyncNotifierProvider<
-    CustomerOrdersNotifier, List<OrderModel>>(CustomerOrdersNotifier.new);
+final customerOrdersProvider =
+    AutoDisposeAsyncNotifierProvider<CustomerOrdersNotifier, List<OrderModel>>(
+      CustomerOrdersNotifier.new,
+    );
 
 /// Provider that exposes customer order statistics.
 final customerOrderStatsProvider = Provider<Map<String, dynamic>>((ref) {
   final ordersAsync = ref.watch(customerOrdersProvider);
-  
+
   return ordersAsync.when(
     data: (orders) {
       final totalOrders = orders.length;
@@ -41,9 +44,13 @@ final customerOrderStatsProvider = Provider<Map<String, dynamic>>((ref) {
           .where((order) => order.stato.isCompleted)
           .fold<double>(0.0, (sum, order) => sum + order.totale);
       final activeOrders = orders
-          .where((order) => !order.stato.isCompleted && order.stato != OrderStatus.cancelled)
+          .where(
+            (order) =>
+                !order.stato.isCompleted &&
+                order.stato != OrderStatus.cancelled,
+          )
           .length;
-      
+
       return {
         'totalOrders': totalOrders,
         'totalSpent': totalSpent,
@@ -55,7 +62,8 @@ final customerOrderStatsProvider = Provider<Map<String, dynamic>>((ref) {
   );
 });
 
-class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> {
+class CustomerOrdersNotifier
+    extends AutoDisposeAsyncNotifier<List<OrderModel>> {
   final DatabaseService _database = DatabaseService();
   final RealtimeService _realtime = RealtimeService();
 
@@ -66,15 +74,18 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
   FutureOr<List<OrderModel>> build() async {
     // Watch authProvider directly to ensure rebuild on auth changes
     final authState = ref.watch(authProvider);
-    
+
     // If auth is still loading, return empty list and wait for rebuild
     if (authState.isLoading) {
-      Logger.debug('Auth still loading, returning empty list', tag: 'CustomerOrders');
+      Logger.debug(
+        'Auth still loading, returning empty list',
+        tag: 'CustomerOrders',
+      );
       return [];
     }
-    
+
     final user = authState.value;
-    
+
     // Filter to only customers and staff
     final isValidUser = user != null && (user.isCustomer || user.isStaff);
 
@@ -89,13 +100,17 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
     _initialLoadComplete = false;
 
     if (!isValidUser) {
-      Logger.debug('No authenticated customer available', tag: 'CustomerOrders');
+      Logger.debug(
+        'No authenticated customer available',
+        tag: 'CustomerOrders',
+      );
       return [];
     }
 
-    _startRealtimeListener(user);
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    _startRealtimeListener(user, orgId);
 
-    final orders = await _fetchOrders(user);
+    final orders = await _fetchOrders(user, orgId);
     Logger.debug(
       'Fetched ${orders.length} active orders for current customer',
       tag: 'CustomerOrders',
@@ -111,26 +126,31 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
     if (user == null) {
       return null;
     }
-    
+
     // Allow both customers and staff (managers, kitchen, delivery) to see their own orders
     // Staff might place orders for testing or personal use
     if (!user.isCustomer && !user.isStaff) {
       return null;
     }
-    
+
     return user;
   }
 
-  Future<List<OrderModel>> _fetchOrders(UserModel user) async {
+  Future<List<OrderModel>> _fetchOrders(UserModel user, String? orgId) async {
     // Now fetch with status filter
     final orders = await _database.getOrders(
       clienteId: user.id,
       statuses: _activeOrderStatuses,
       limit: 50,
+      organizationId: orgId,
     );
 
     final filtered = orders
-        .where((order) => !_isTerminalStatus(order.stato) && !_isCompletedOrderTooOld(order))
+        .where(
+          (order) =>
+              !_isTerminalStatus(order.stato) &&
+              !_isCompletedOrderTooOld(order),
+        )
         .toList();
 
     Logger.debug(
@@ -141,79 +161,86 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
     return filtered;
   }
 
-  void _startRealtimeListener(UserModel user) {
+  void _startRealtimeListener(UserModel user, String? orgId) {
     Logger.debug(
       'Starting customer orders realtime listener',
       tag: 'CustomerOrders',
     );
-    
-    _ordersSubscription = _realtime
-        .watchActiveOrders()
-        .listen((orders) async {
-      // Ignore realtime updates until initial load completes
-      if (!_initialLoadComplete) {
-        Logger.debug(
-          'Ignoring realtime update (initial load not complete)',
-          tag: 'CustomerOrders',
-        );
-        return;
-      }
-      
-      final filtered = orders.where((order) {
-        return order.clienteId == user.id &&
-            !_isTerminalStatus(order.stato) &&
-            !_isCompletedOrderTooOld(order);
-      }).toList();
 
-      Logger.debug(
-        'Realtime update received (${filtered.length} orders for customer)',
-        tag: 'CustomerOrders',
-      );
-      
-      // Realtime streams don't include order items, so we merge with existing state
-      // to preserve the items array while updating order status and other fields
-      final currentOrders = state.value ?? [];
-      final currentOrderIds = currentOrders.map((o) => o.id).toSet();
-      
-      // Check if there are new orders we haven't seen before
-      final newOrderIds = filtered
-          .where((o) => !currentOrderIds.contains(o.id))
-          .map((o) => o.id)
-          .toList();
-      
-      // If there are new orders, refetch to get their items
-      if (newOrderIds.isNotEmpty) {
-        Logger.debug(
-          'New orders detected (${newOrderIds.length}), refetching all',
-          tag: 'CustomerOrders',
-        );
-        try {
-          final fullOrders = await _fetchOrders(user);
-          state = AsyncValue.data(fullOrders);
-          return;
-        } catch (e) {
-          Logger.debug('Error refetching new orders: $e', tag: 'CustomerOrders');
-          // Fall through to merge logic
-        }
-      }
-      
-      // Merge realtime updates with existing orders to preserve items
-      final mergedOrders = filtered.map((realtimeOrder) {
-        final existingOrder = currentOrders.firstWhere(
-          (o) => o.id == realtimeOrder.id,
-          orElse: () => realtimeOrder,
-        );
-        
-        // If items are empty in realtime update but exist in current state, preserve them
-        if (realtimeOrder.items.isEmpty && existingOrder.items.isNotEmpty) {
-          return realtimeOrder.copyWith(items: existingOrder.items);
-        }
-        
-        return realtimeOrder;
-      }).toList();
-      
-      state = AsyncValue.data(mergedOrders);
-    });
+    _ordersSubscription = _realtime
+        .watchOrdersByStatus(
+          statuses: _activeOrderStatuses,
+          clienteId: user.id,
+          organizationId: orgId,
+        )
+        .listen((orders) async {
+          // Ignore realtime updates until initial load completes
+          if (!_initialLoadComplete) {
+            Logger.debug(
+              'Ignoring realtime update (initial load not complete)',
+              tag: 'CustomerOrders',
+            );
+            return;
+          }
+
+          final filtered = orders.where((order) {
+            return order.clienteId == user.id &&
+                !_isTerminalStatus(order.stato) &&
+                !_isCompletedOrderTooOld(order);
+          }).toList();
+
+          Logger.debug(
+            'Realtime update received (${filtered.length} orders for customer)',
+            tag: 'CustomerOrders',
+          );
+
+          // Realtime streams don't include order items, so we merge with existing state
+          // to preserve the items array while updating order status and other fields
+          final currentOrders = state.value ?? [];
+          final currentOrderIds = currentOrders.map((o) => o.id).toSet();
+
+          // Check if there are new orders we haven't seen before
+          final newOrderIds = filtered
+              .where((o) => !currentOrderIds.contains(o.id))
+              .map((o) => o.id)
+              .toList();
+
+          // If there are new orders, refetch to get their items
+          if (newOrderIds.isNotEmpty) {
+            Logger.debug(
+              'New orders detected (${newOrderIds.length}), refetching all',
+              tag: 'CustomerOrders',
+            );
+            try {
+              final fullOrders = await _fetchOrders(user, orgId);
+              state = AsyncValue.data(fullOrders);
+              return;
+            } catch (e) {
+              Logger.debug(
+                'Error refetching new orders: $e',
+                tag: 'CustomerOrders',
+              );
+              // Fall through to merge logic
+            }
+          }
+
+          // Merge realtime updates with existing orders to preserve items
+          final mergedOrders = filtered.map((realtimeOrder) {
+            final existingOrder = currentOrders.firstWhere(
+              (o) => o.id == realtimeOrder.id,
+              orElse: () => realtimeOrder,
+            );
+
+            // If items are empty in realtime update but exist in current state, preserve them
+            if (realtimeOrder.items.isEmpty && existingOrder.items.isNotEmpty) {
+              return realtimeOrder.copyWith(items: existingOrder.items);
+            }
+
+            return realtimeOrder;
+          }).toList();
+
+          state = AsyncValue.data(mergedOrders);
+        });
 
     ref.onDispose(() async {
       await _ordersSubscription?.cancel();
@@ -230,13 +257,13 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
     if (order.stato != OrderStatus.completed) {
       return false;
     }
-    
+
     // If no completion time, consider it too old
     final completedAt = order.completatoAt;
     if (completedAt == null) {
       return true;
     }
-    
+
     // Check if completed more than 12 hours ago
     final twelveHoursAgo = DateTime.now().subtract(const Duration(hours: 12));
     return completedAt.isBefore(twelveHoursAgo);
@@ -249,8 +276,9 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
       return;
     }
 
+    final orgId = await ref.read(currentOrganizationProvider.future);
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _fetchOrders(user));
+    state = await AsyncValue.guard(() => _fetchOrders(user, orgId));
   }
 
   Future<void> cancelOrder(String orderId) async {
@@ -259,7 +287,8 @@ class CustomerOrdersNotifier extends AutoDisposeAsyncNotifier<List<OrderModel>> 
       return;
     }
 
-    final currentOrders = state.value ?? await _fetchOrders(user);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    final currentOrders = state.value ?? await _fetchOrders(user, orgId);
     final order = currentOrders.firstWhere(
       (o) => o.id == orderId,
       orElse: () => throw StateError('Ordine non trovato'),

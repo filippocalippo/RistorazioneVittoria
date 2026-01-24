@@ -1,3 +1,4 @@
+// Organization filtering handled by DatabaseService
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import '../core/models/order_model.dart';
 import '../core/services/database_service.dart';
 import '../core/services/inventory_service.dart';
 import '../core/utils/enums.dart';
+import 'organization_provider.dart';
 
 part 'manager_orders_provider.g.dart';
 
@@ -15,8 +17,10 @@ class ManagerOrders extends _$ManagerOrders {
   @override
   Future<List<OrderModel>> build() async {
     final db = DatabaseService();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
     return await db.getOrders(
       limit: 2000, // Increased limit to ensure all daily orders are visible
+      organizationId: orgId,
     );
   }
 
@@ -54,10 +58,15 @@ class ManagerOrders extends _$ManagerOrders {
       final supabaseClient = Supabase.instance.client;
       final inventoryService = InventoryService(supabaseClient);
 
-      final ingredientsData = await supabaseClient
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      var ingredientsQuery = supabaseClient
           .from('ingredients')
           .select('id, track_stock')
           .eq('track_stock', true);
+      if (orgId != null) {
+        ingredientsQuery = ingredientsQuery.eq('organization_id', orgId);
+      }
+      final ingredientsData = await ingredientsQuery;
 
       final trackableIngredientIds = (ingredientsData as List)
           .map((i) => i['id'] as String)

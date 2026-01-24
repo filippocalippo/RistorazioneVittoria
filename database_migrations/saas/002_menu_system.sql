@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS public.sizes_master (
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     nome TEXT NOT NULL,
     descrizione TEXT,
-    slug TEXT UNIQUE NOT NULL,                                               -- e.g., "media", "grande"
+    slug TEXT NOT NULL,                                                      -- e.g., "media", "grande"
+    price_multiplier NUMERIC(10,2) DEFAULT 1.0,                              -- NEW: size price multiplier
     permetti_divisioni BOOLEAN DEFAULT false,
     ordine INTEGER DEFAULT 0,
     attivo BOOLEAN DEFAULT true,
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS public.sizes_master (
 
 CREATE INDEX IF NOT EXISTS idx_sizes_master_org ON sizes_master(organization_id);
 CREATE INDEX IF NOT EXISTS idx_sizes_master_attivo ON sizes_master(attivo) WHERE attivo = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sizes_master_org_slug ON sizes_master(organization_id, slug);
 
 -- ---------------------------------------------------------------------------
 -- 3. INGREDIENTS (Toppings and add-ons)
@@ -73,12 +75,15 @@ CREATE TABLE IF NOT EXISTS public.ingredients (
     nome TEXT NOT NULL,
     descrizione TEXT,
     prezzo NUMERIC(10,2) DEFAULT 0,                                          -- Base price
+    categoria TEXT,                                                         -- Category label
+    allergeni TEXT[] DEFAULT ARRAY[]::TEXT[],                                -- Allergen list
     attivo BOOLEAN DEFAULT true,
     ordine INTEGER DEFAULT 0,
 
     -- Inventory fields
     stock_quantity NUMERIC DEFAULT 0,
-    unit_of_measure TEXT DEFAULT 'unit',                                     -- unit, kg, g, l, ml
+    unit_of_measurement TEXT DEFAULT 'unit',                                 -- unit, kg, g, l, ml
+    track_stock BOOLEAN DEFAULT false,
     low_stock_threshold NUMERIC DEFAULT 0,
     
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -98,8 +103,9 @@ CREATE TABLE IF NOT EXISTS public.ingredient_size_prices (
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     ingredient_id UUID NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
     size_id UUID NOT NULL REFERENCES sizes_master(id) ON DELETE CASCADE,
-    price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    prezzo NUMERIC(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
     
     UNIQUE(ingredient_id, size_id)
 );
@@ -119,7 +125,12 @@ CREATE TABLE IF NOT EXISTS public.menu_items (
     nome TEXT NOT NULL,
     descrizione TEXT,
     prezzo NUMERIC(10,2) NOT NULL DEFAULT 0,                                 -- Base price
+    prezzo_scontato NUMERIC(10,2),                                           -- Discounted price
     immagine_url TEXT,
+    ingredienti TEXT[] DEFAULT ARRAY[]::TEXT[],                              -- Legacy inline ingredients
+    allergeni TEXT[] DEFAULT ARRAY[]::TEXT[],                                -- Allergen list
+    valori_nutrizionali JSONB,                                               -- Nutrition facts
+    product_configuration JSONB,                                             -- Customization config
     ordine INTEGER DEFAULT 0,
     attivo BOOLEAN DEFAULT true,
     
@@ -147,8 +158,9 @@ CREATE TABLE IF NOT EXISTS public.menu_item_sizes (
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     menu_item_id UUID NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
     size_id UUID NOT NULL REFERENCES sizes_master(id) ON DELETE CASCADE,
-    prezzo NUMERIC(10,2) NOT NULL DEFAULT 0,                                 -- Price for this size
-    attivo BOOLEAN DEFAULT true,
+    display_name_override TEXT,                                              -- Optional display override
+    is_default BOOLEAN DEFAULT false,                                        -- Default size for product
+    price_override NUMERIC(10,2),                                            -- Optional fixed price
     ordine INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     
@@ -187,6 +199,7 @@ CREATE TABLE IF NOT EXISTS public.menu_item_extra_ingredients (
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     menu_item_id UUID NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
     ingredient_id UUID NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    max_quantity INTEGER DEFAULT 1,
     ordine INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     
@@ -242,97 +255,157 @@ ALTER TABLE menu_item_extra_ingredients ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can view active categories" ON categorie_menu;
 CREATE POLICY "Anyone can view active categories" ON categorie_menu
     FOR SELECT TO authenticated
-    USING (attiva = true OR is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND (attiva = true OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Managers can manage categories" ON categorie_menu;
 CREATE POLICY "Managers can manage categories" ON categorie_menu
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === SIZES_MASTER ===
 DROP POLICY IF EXISTS "Anyone can view active sizes" ON sizes_master;
 CREATE POLICY "Anyone can view active sizes" ON sizes_master
     FOR SELECT TO anon, authenticated
-    USING (attivo = true OR is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND (attivo = true OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Managers can manage sizes" ON sizes_master;
 CREATE POLICY "Managers can manage sizes" ON sizes_master
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === INGREDIENTS ===
 DROP POLICY IF EXISTS "Anyone can view active ingredients" ON ingredients;
 CREATE POLICY "Anyone can view active ingredients" ON ingredients
     FOR SELECT TO authenticated
-    USING (attivo = true OR is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND (attivo = true OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Managers can manage ingredients" ON ingredients;
 CREATE POLICY "Managers can manage ingredients" ON ingredients
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === INGREDIENT_SIZE_PRICES ===
 DROP POLICY IF EXISTS "Anyone can view ingredient prices" ON ingredient_size_prices;
 CREATE POLICY "Anyone can view ingredient prices" ON ingredient_size_prices
     FOR SELECT TO authenticated
-    USING (true);
+    USING (organization_id = get_current_organization_id());
 
 DROP POLICY IF EXISTS "Managers can manage ingredient prices" ON ingredient_size_prices;
 CREATE POLICY "Managers can manage ingredient prices" ON ingredient_size_prices
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === MENU_ITEMS ===
 DROP POLICY IF EXISTS "Anyone can view active menu items" ON menu_items;
 CREATE POLICY "Anyone can view active menu items" ON menu_items
     FOR SELECT TO authenticated
-    USING (attivo = true OR is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND (attivo = true OR is_staff())
+    );
 
 DROP POLICY IF EXISTS "Managers can manage menu items" ON menu_items;
 CREATE POLICY "Managers can manage menu items" ON menu_items
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === MENU_ITEM_SIZES ===
 DROP POLICY IF EXISTS "Anyone can view menu item sizes" ON menu_item_sizes;
 CREATE POLICY "Anyone can view menu item sizes" ON menu_item_sizes
     FOR SELECT TO authenticated
-    USING (true);
+    USING (organization_id = get_current_organization_id());
 
 DROP POLICY IF EXISTS "Managers can manage menu item sizes" ON menu_item_sizes;
 CREATE POLICY "Managers can manage menu item sizes" ON menu_item_sizes
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === MENU_ITEM_INCLUDED_INGREDIENTS ===
 DROP POLICY IF EXISTS "Anyone can view included ingredients" ON menu_item_included_ingredients;
 CREATE POLICY "Anyone can view included ingredients" ON menu_item_included_ingredients
     FOR SELECT TO authenticated
-    USING (true);
+    USING (organization_id = get_current_organization_id());
 
 DROP POLICY IF EXISTS "Managers can manage included ingredients" ON menu_item_included_ingredients;
 CREATE POLICY "Managers can manage included ingredients" ON menu_item_included_ingredients
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- === MENU_ITEM_EXTRA_INGREDIENTS ===
 DROP POLICY IF EXISTS "Anyone can view extra ingredients" ON menu_item_extra_ingredients;
 CREATE POLICY "Anyone can view extra ingredients" ON menu_item_extra_ingredients
     FOR SELECT TO authenticated
-    USING (true);
+    USING (organization_id = get_current_organization_id());
 
 DROP POLICY IF EXISTS "Managers can manage extra ingredients" ON menu_item_extra_ingredients;
 CREATE POLICY "Managers can manage extra ingredients" ON menu_item_extra_ingredients
     FOR ALL TO authenticated
-    USING (is_manager())
-    WITH CHECK (is_manager());
+    USING (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    )
+    WITH CHECK (
+        organization_id = get_current_organization_id()
+        AND is_organization_admin(organization_id)
+    );
 
 -- ---------------------------------------------------------------------------
 -- 12. HELPER FUNCTION: Get ingredient price for a size
@@ -349,7 +422,7 @@ DECLARE
     v_price NUMERIC;
 BEGIN
     -- First try to get size-specific price
-    SELECT price INTO v_price
+    SELECT prezzo INTO v_price
     FROM ingredient_size_prices
     WHERE ingredient_id = p_ingredient_id AND size_id = p_size_id;
     
@@ -387,7 +460,7 @@ BEGIN
         i.nome,
         COUNT(*) AS times_used
     FROM ordini_items oi
-    CROSS JOIN LATERAL jsonb_array_elements(oi.extras_added) AS ea
+    CROSS JOIN LATERAL jsonb_array_elements(oi.varianti->'addedIngredients') AS ea
     JOIN ingredients i ON i.id = (ea->>'id')::UUID
     WHERE oi.menu_item_id = p_menu_item_id
     AND i.attivo = true

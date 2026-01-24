@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../DesignSystem/design_tokens.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/enums.dart';
@@ -12,6 +11,7 @@ import '../../../providers/cashier_order_provider.dart';
 import '../../../providers/cashier_customer_provider.dart';
 import '../../../providers/pizzeria_settings_provider.dart';
 import '../../../providers/manager_orders_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../../../core/services/database_service.dart';
 import '../../customer/widgets/product_customization_modal.dart';
 import '../../customer/widgets/dual_stack_split_modal.dart';
@@ -32,8 +32,6 @@ import '../../../providers/sizes_provider.dart';
 import '../../../providers/ingredients_provider.dart';
 import '../../../core/models/menu_item_model.dart';
 import '../../../core/models/product_configuration_model.dart';
-import '../../../core/providers/inventory_provider.dart';
-import '../../../core/services/inventory_service.dart';
 
 /// Helper function to get size display name
 String _getSizeDisplayName(SizeVariantModel size) {
@@ -286,7 +284,11 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
 
       try {
         final db = DatabaseService();
-        final results = await db.searchCashierCustomers(query);
+        final orgId = await ref.read(currentOrganizationProvider.future);
+        final results = await db.searchCashierCustomers(
+          query,
+          organizationId: orgId,
+        );
 
         if (!mounted) return;
 
@@ -331,7 +333,6 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
     Overlay.of(context).insert(_suggestionsOverlay!);
   }
 
-
   /// Remove suggestions overlay
   void _removeSuggestionsOverlay() {
     _suggestionsOverlay?.remove();
@@ -341,8 +342,6 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
   void _handleNameFocusChange() {
     // suggestions overlay removal is now handled by TapRegion in _AnimatedSuggestionsOverlay
   }
-
-
 
   /// Select a customer from suggestions
   void _selectCustomer(CashierCustomerModel customer) {
@@ -412,13 +411,25 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
         // Fallback if settings not loaded yet
         final allSlots = <DateTime>[];
         // Default to today 00:00 - 23:30 with 30m slots
-        var cursor = DateTime(targetDate.year, targetDate.month, targetDate.day, 0, 0);
-        final endOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59);
+        var cursor = DateTime(
+          targetDate.year,
+          targetDate.month,
+          targetDate.day,
+          0,
+          0,
+        );
+        final endOfDay = DateTime(
+          targetDate.year,
+          targetDate.month,
+          targetDate.day,
+          23,
+          59,
+        );
         while (cursor.isBefore(endOfDay)) {
           allSlots.add(cursor);
           cursor = cursor.add(const Duration(minutes: 30));
         }
-        
+
         setState(() {
           _availableSlots = allSlots;
           _selectedSlot = allSlots.isNotEmpty ? allSlots.first : null;
@@ -430,7 +441,7 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
 
     final slotMinutes = settings.orderManagement.tempoSlotMinuti;
     // final prepMinutes = settings.orderManagement.tempoPreparazioneMedio;
-    final now = DateTime.now();
+    // final now = DateTime.now();
     final effectiveSlotMinutes = slotMinutes > 0 ? slotMinutes : 30;
 
     final orari = settings.pizzeria.orari ?? {};
@@ -468,22 +479,34 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
         parseTime(day['chiusura'] as String?, targetDate) ??
         DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 0);
 
-    // If hours are invalid (e.g. closed crossing midnight not handled or just wrong), 
+    // If hours are invalid (e.g. closed crossing midnight not handled or just wrong),
     // fallback to standard full day for cashier to ensure availability
     if (!chiusura.isAfter(apertura)) {
-       apertura = DateTime(targetDate.year, targetDate.month, targetDate.day, 0, 0);
-       chiusura = DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59);
+      apertura = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        0,
+        0,
+      );
+      chiusura = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        23,
+        59,
+      );
     }
 
     // final isToday =
     //     targetDate.year == now.year &&
     //     targetDate.month == now.month &&
     //     targetDate.day == now.day;
-        
+
     // For cashier, allow selecting any slot in the working day, even past ones
     // This allows logging past orders or forcing orders outside normal flow
-    final earliest = apertura; 
-    
+    final earliest = apertura;
+
     final start = earliest.isAfter(apertura) ? earliest : apertura;
     final roundedStart =
         DateTime(
@@ -502,27 +525,51 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
 
     final allSlots = <DateTime>[];
     var cursor = roundedStart;
-    
+
     // Safety check: ensure we generate at least one slot if logic fails or hours are weird
     if (!cursor.isBefore(chiusura)) {
-       // Reset to full day logic as final fallback
-       cursor = DateTime(targetDate.year, targetDate.month, targetDate.day, 0, 0);
-       chiusura = DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59);
+      // Reset to full day logic as final fallback
+      cursor = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        0,
+        0,
+      );
+      chiusura = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        23,
+        59,
+      );
     }
 
     while (cursor.isBefore(chiusura)) {
       allSlots.add(cursor);
       cursor = cursor.add(Duration(minutes: effectiveSlotMinutes));
     }
-    
+
     // Absolute guarantee: if still empty, force full day slots
     if (allSlots.isEmpty) {
-        cursor = DateTime(targetDate.year, targetDate.month, targetDate.day, 0, 0);
-        final endOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59);
-        while (cursor.isBefore(endOfDay)) {
-          allSlots.add(cursor);
-          cursor = cursor.add(const Duration(minutes: 30));
-        }
+      cursor = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        0,
+        0,
+      );
+      final endOfDay = DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        23,
+        59,
+      );
+      while (cursor.isBefore(endOfDay)) {
+        allSlots.add(cursor);
+        cursor = cursor.add(const Duration(minutes: 30));
+      }
     }
 
     if (mounted) {
@@ -582,6 +629,7 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
     try {
       final db = DatabaseService();
       final customerService = ref.read(cashierCustomerServiceProvider);
+      final orgId = await ref.read(currentOrganizationProvider.future);
 
       // ============================================================
       // STEP 1: Process customer FIRST to get geocoded coordinates
@@ -817,6 +865,7 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
           slotPrenotatoStart: selectedSlot,
           cashierCustomerId: customerResult?.customerId,
           zone: zoneName,
+          organizationId: orgId,
         );
       } else {
         // CREATE new order
@@ -846,6 +895,7 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
           slotPrenotatoStart: selectedSlot, // Pass the selected time slot
           status: OrderStatus.ready, // Cashier orders are immediately ready
           zone: zoneName,
+          organizationId: orgId,
         );
 
         // Inventory deduction is now handled server-side by place-order Edge Function
@@ -881,8 +931,6 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
       }
     }
   }
-
-
 
   Map<String, dynamic> _buildVariantsMap(CashierOrderItem item) {
     final variants = <String, dynamic>{};
@@ -1362,8 +1410,8 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
                 : ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: orderItems.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1),
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: AppColors.border),
                     itemBuilder: (context, index) {
                       final item = orderItems[index];
                       return _OrderItemTile(
@@ -1648,7 +1696,6 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
 
   Future<void> _handleEditItem(CashierOrderItem item) async {
     if (item.isSplit && item.secondMenuItem != null) {
-
       // Handle split item edit
       final firstProduct = item.menuItem;
       final secondProduct = item.secondMenuItem!;
@@ -1829,9 +1876,9 @@ class CashierOrderPanelState extends ConsumerState<CashierOrderPanel> {
         editIndex: 0, // Not used for replacement here
         initialSize: initialSizeAssignment,
         firstAddedIngredients: firstAdded,
-        firstRemovedIngredients: item.cartItem.removedIngredients,
+        firstRemovedIngredients: firstRemoved,
         secondAddedIngredients: secondAdded,
-        secondRemovedIngredients: item.cartItem.removedIngredients,
+        secondRemovedIngredients: secondRemoved,
         initialNote: item.note,
         onSplitComplete: (data) {
           final quantity = 1; // Split modal usually handles 1 item at a time
@@ -2689,12 +2736,14 @@ class _AnimatedSuggestionsOverlayState
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    _scale = Tween<double>(begin: 0.95, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _opacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _scale = Tween<double>(
+      begin: 0.95,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
     _controller.forward();
   }
 

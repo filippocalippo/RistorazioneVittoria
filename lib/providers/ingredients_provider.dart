@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,11 +18,19 @@ class Ingredients extends _$Ingredients {
     final supabase = Supabase.instance.client;
 
     try {
+      // Get current organization ID
+      final orgId = await ref.read(currentOrganizationProvider.future);
+
       // Fetch ingredients with their size prices
-      final response = await supabase
+      var query = supabase
           .from('ingredients')
-          .select('*, ingredient_size_prices(*)')
-          .order('ordine', ascending: true);
+          .select('*, ingredient_size_prices(*)');
+
+      // Multi-tenant: filter by organization
+      if (orgId != null) {
+        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      }
+      final response = await query.order('ordine', ascending: true);
 
       return (response as List)
           .map((json) => IngredientModel.fromJson(json))
@@ -37,6 +46,7 @@ class Ingredients extends _$Ingredients {
     Map<String, double> sizePrices, // sizeId -> price
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       // Delete existing size prices for this ingredient
@@ -50,6 +60,7 @@ class Ingredients extends _$Ingredients {
           .where((e) => e.value > 0)
           .map(
             (e) => {
+              if (orgId != null) 'organization_id': orgId,
               'ingredient_id': ingredientId,
               'size_id': e.key,
               'prezzo': e.value,
@@ -76,6 +87,10 @@ class Ingredients extends _$Ingredients {
     final data = Map<String, dynamic>.from(ingredient.toJson());
     data.remove('ingredient_size_prices');
 
+    // Multi-tenant: add organization_id
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    data['organization_id'] = orgId;
+
     try {
       await supabase.from('ingredients').insert(data);
 
@@ -97,12 +112,17 @@ class Ingredients extends _$Ingredients {
     }
 
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       // Remove joined data from each ingredient
       final cleanedData = ingredients.map((ingredient) {
         final data = Map<String, dynamic>.from(ingredient.toJson());
         data.remove('ingredient_size_prices');
+        // Ensure org isolation for bulk insert
+        if (orgId != null) {
+          data['organization_id'] = orgId;
+        }
         return data;
       }).toList();
 

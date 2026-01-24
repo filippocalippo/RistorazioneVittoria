@@ -2,7 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/services/cities_service.dart';
 import '../core/models/allowed_city_model.dart';
-import 'auth_provider.dart';
+import 'organization_provider.dart';
 
 part 'cities_provider.g.dart';
 
@@ -16,7 +16,8 @@ class AllowedCities extends _$AllowedCities {
   @override
   Future<List<AllowedCityModel>> build() async {
     final service = ref.watch(citiesServiceProvider);
-    return await service.getAllowedCities();
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    return await service.getAllowedCities(organizationId: orgId);
   }
 
   Future<void> createCity({
@@ -24,13 +25,14 @@ class AllowedCities extends _$AllowedCities {
     required String cap,
     bool attiva = true,
   }) async {
-    final user = ref.read(authProvider).value;
-    if (user == null) return;
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    if (orgId == null) return;
 
     final service = ref.read(citiesServiceProvider);
     await service.createCity(
       nome: nome,
       cap: cap,
+      organizationId: orgId,
       attiva: attiva,
     );
 
@@ -39,23 +41,25 @@ class AllowedCities extends _$AllowedCities {
 
   Future<void> updateCity(String cityId, Map<String, dynamic> updates) async {
     final service = ref.read(citiesServiceProvider);
-    final user = ref.read(authProvider).value;
-    if (user == null) return;
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    if (orgId == null) return;
 
     await service.updateCity(
       cityId: cityId,
       updates: updates,
+      organizationId: orgId,
     );
     ref.invalidateSelf();
   }
 
   Future<void> deleteCity(String cityId) async {
     final service = ref.read(citiesServiceProvider);
-    final user = ref.read(authProvider).value;
-    if (user == null) return;
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    if (orgId == null) return;
 
     await service.deleteCity(
       cityId: cityId,
+      organizationId: orgId,
     );
     ref.invalidateSelf();
   }
@@ -66,6 +70,7 @@ class AllCities extends _$AllCities {
   @override
   Future<List<AllowedCityModel>> build() async {
     final service = ref.watch(citiesServiceProvider);
-    return await service.getAllCities();
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    return await service.getAllCities(organizationId: orgId);
   }
 }

@@ -2,6 +2,7 @@
 /// These are pre-fab customer profiles created at POS, not linked to auth users
 class CashierCustomerModel {
   final String id;
+  final String? organizationId;
   final String nome;
   final String nomeNormalized;
   final String? telefono;
@@ -22,6 +23,7 @@ class CashierCustomerModel {
 
   CashierCustomerModel({
     required this.id,
+    this.organizationId,
     required this.nome,
     required this.nomeNormalized,
     this.telefono,
@@ -44,6 +46,7 @@ class CashierCustomerModel {
   factory CashierCustomerModel.fromJson(Map<String, dynamic> json) {
     return CashierCustomerModel(
       id: json['id'] as String,
+      organizationId: json['organization_id'] as String?,
       nome: json['nome'] as String,
       nomeNormalized: json['nome_normalized'] as String? ?? '',
       telefono: json['telefono'] as String?,
@@ -71,6 +74,7 @@ class CashierCustomerModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'organization_id': organizationId,
       'nome': nome,
       'nome_normalized': nomeNormalized,
       'telefono': telefono,
@@ -94,6 +98,7 @@ class CashierCustomerModel {
   /// Returns data for insert (without id and computed fields)
   Map<String, dynamic> toInsertJson() {
     return {
+      'organization_id': organizationId,
       'nome': nome,
       'telefono': telefono,
       'indirizzo': indirizzo,
@@ -109,6 +114,7 @@ class CashierCustomerModel {
 
   CashierCustomerModel copyWith({
     String? id,
+    String? organizationId,
     String? nome,
     String? nomeNormalized,
     String? telefono,
@@ -129,6 +135,7 @@ class CashierCustomerModel {
   }) {
     return CashierCustomerModel(
       id: id ?? this.id,
+      organizationId: organizationId ?? this.organizationId,
       nome: nome ?? this.nome,
       nomeNormalized: nomeNormalized ?? this.nomeNormalized,
       telefono: telefono ?? this.telefono,
@@ -165,7 +172,8 @@ class CashierCustomerModel {
   }
 
   @override
-  String toString() => 'CashierCustomerModel(id: $id, nome: $nome, telefono: $telefono)';
+  String toString() =>
+      'CashierCustomerModel(id: $id, nome: $nome, telefono: $telefono)';
 
   @override
   bool operator ==(Object other) =>

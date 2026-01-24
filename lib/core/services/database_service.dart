@@ -19,6 +19,32 @@ import '../utils/enums.dart';
 import '../utils/model_parsers.dart';
 import '../exceptions/app_exceptions.dart';
 
+// =============================================================================
+// TODO: SAAS MIGRATION - Organization Filtering Required
+// =============================================================================
+// The following tables need organization_id filtering:
+// - categorie_menu, menu_items, ingredients, sizes_master
+// - ordini, ordini_items, notifiche, cashier_customers
+// - delivery_zones, allowed_cities, promotional_banners
+// - business_rules, delivery_configuration, order_management
+// - kitchen_management, display_branding, dashboard_security
+// - ingredient_consumption_rules, inventory_logs, payment_transactions
+//
+// For each query:
+// 1. Add String? organizationId parameter to the method
+// 2. Add .eq('organization_id', organizationId) to SELECT queries
+// 3. Add 'organization_id': organizationId to INSERT payloads
+//
+// Example:
+//   Future<List<MenuItem>> getMenuItems({String? organizationId}) async {
+//     var query = _client.from('menu_items').select();
+//     if (organizationId != null) {
+//       query = query.eq('organization_id', organizationId);
+//     }
+//     return query...
+//   }
+// =============================================================================
+
 class DatabaseService {
   final SupabaseClient _client = SupabaseConfig.client;
 
@@ -53,9 +79,16 @@ class DatabaseService {
     return payload;
   }
 
-  Future<Map<String, dynamic>?> _fetchSettingsRow(String table) async {
+  Future<Map<String, dynamic>?> _fetchSettingsRow(
+    String table, {
+    String? organizationId,
+  }) async {
     try {
-      final data = await _client.from(table).select().maybeSingle();
+      var query = _client.from(table).select();
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.maybeSingle();
 
       if (data == null) return null;
       return Map<String, dynamic>.from(data as Map);
@@ -66,16 +99,24 @@ class DatabaseService {
 
   Future<void> _upsertSettingsRow(
     String table,
-    Map<String, dynamic> values,
-  ) async {
+    Map<String, dynamic> values, {
+    String? organizationId,
+  }) async {
     final payload = Map<String, dynamic>.from(values);
     const immutableFields = {'id', 'created_at', 'updated_at'};
     payload.removeWhere((key, _) => immutableFields.contains(key));
     payload['updated_at'] = _nowUtcIso();
+    if (organizationId != null) {
+      payload['organization_id'] = organizationId;
+    }
 
     try {
-      // Fetch existing row to get its ID (single-tenant: one row per table)
-      final existing = await _client.from(table).select('id').maybeSingle();
+      // Fetch existing row to get its ID
+      var selectQuery = _client.from(table).select('id');
+      if (organizationId != null) {
+        selectQuery = selectQuery.eq('organization_id', organizationId);
+      }
+      final existing = await selectQuery.maybeSingle();
 
       if (existing != null) {
         // Update existing row
@@ -91,17 +132,25 @@ class DatabaseService {
 
   // ========== PIZZERIA ==========
 
-  /// Get the single pizzeria from business_rules (single-tenant system)
-  Future<PizzeriaModel> getPizzeria() async {
+  /// Get pizzeria/organization details and business rules for current tenant
+  Future<PizzeriaModel> getPizzeria({String? organizationId}) async {
     try {
-      final data = await _client
-          .from('business_rules')
-          .select()
-          .limit(1)
-          .maybeSingle();
+      Map<String, dynamic>? org;
+      if (organizationId != null) {
+        org = await _client
+            .from('organizations')
+            .select('id, name, logo_url')
+            .eq('id', organizationId)
+            .maybeSingle();
+      }
 
-      if (data == null) {
-        // Return default pizzeria if no business_rules found
+      final rules = await _fetchSettingsRow(
+        'business_rules',
+        organizationId: organizationId,
+      );
+
+      if (org == null && rules == null) {
+        // Return default pizzeria if no data found
         final now = DateTime.now().toIso8601String();
         return PizzeriaModel(
           id: 'default',
@@ -160,40 +209,62 @@ class DatabaseService {
         );
       }
 
+      final createdAt = _parseDateTime(rules?['created_at']);
+      final updatedAt = _parseDateTime(rules?['updated_at']);
+
       return PizzeriaModel(
-        id: data['id'] as String,
-        indirizzo: data['indirizzo'] as String?,
-        citta: data['citta'] as String?,
-        cap: data['cap'] as String?,
-        provincia: data['provincia'] as String?,
-        telefono: data['telefono'] as String?,
-        email: data['email'] as String?,
-        immagineCopertinaUrl: data['immagine_copertina_url'] as String?,
-        orari: data['orari'] != null && data['orari'] is Map
-            ? data['orari'] as Map<String, dynamic>
+        id: (org?['id'] as String?) ?? (organizationId ?? 'default'),
+        nome: org?['name'] as String? ?? 'Rotante',
+        logoUrl: org?['logo_url'] as String? ?? '',
+        indirizzo: rules?['indirizzo'] as String?,
+        citta: rules?['citta'] as String?,
+        cap: rules?['cap'] as String?,
+        provincia: rules?['provincia'] as String?,
+        telefono: rules?['telefono'] as String?,
+        email: rules?['email'] as String?,
+        immagineCopertinaUrl: rules?['immagine_copertina_url'] as String?,
+        orari: rules?['orari'] != null && (rules?['orari'] is Map)
+            ? Map<String, dynamic>.from(rules!['orari'] as Map)
             : null,
-        latitude: (data['latitude'] as num?)?.toDouble(),
-        longitude: (data['longitude'] as num?)?.toDouble(),
-        attiva: data['attiva'] as bool? ?? true,
-        chiusuraTemporanea: data['chiusura_temporanea'] as bool? ?? false,
-        dataChiusuraDa: _parseDateTime(data['data_chiusura_da']),
-        dataChiusuraA: _parseDateTime(data['data_chiusura_a']),
-        createdAt: _parseDateTime(data['created_at'])!,
-        updatedAt: _parseDateTime(data['updated_at']),
+        latitude: (rules?['latitude'] as num?)?.toDouble(),
+        longitude: (rules?['longitude'] as num?)?.toDouble(),
+        attiva: rules?['attiva'] as bool? ?? true,
+        chiusuraTemporanea: rules?['chiusura_temporanea'] as bool? ?? false,
+        dataChiusuraDa: _parseDateTime(rules?['data_chiusura_da']),
+        dataChiusuraA: _parseDateTime(rules?['data_chiusura_a']),
+        createdAt: createdAt ?? DateTime.now(),
+        updatedAt: updatedAt,
       );
     } on PostgrestException catch (e) {
       throw _handleDbError('getPizzeria', e);
     }
   }
 
-  Future<PizzeriaSettingsModel> getPizzeriaSettings() async {
-    final base = await getPizzeria();
+  Future<PizzeriaSettingsModel> getPizzeriaSettings({
+    String? organizationId,
+  }) async {
+    final base = await getPizzeria(organizationId: organizationId);
     try {
-      final orderData = await _fetchSettingsRow('order_management');
-      final deliveryData = await _fetchSettingsRow('delivery_configuration');
-      final brandingData = await _fetchSettingsRow('display_branding');
-      final kitchenData = await _fetchSettingsRow('kitchen_management');
-      final businessData = await _fetchSettingsRow('business_rules');
+      final orderData = await _fetchSettingsRow(
+        'order_management',
+        organizationId: organizationId,
+      );
+      final deliveryData = await _fetchSettingsRow(
+        'delivery_configuration',
+        organizationId: organizationId,
+      );
+      final brandingData = await _fetchSettingsRow(
+        'display_branding',
+        organizationId: organizationId,
+      );
+      final kitchenData = await _fetchSettingsRow(
+        'kitchen_management',
+        organizationId: organizationId,
+      );
+      final businessData = await _fetchSettingsRow(
+        'business_rules',
+        organizationId: organizationId,
+      );
 
       return PizzeriaSettingsModel(
         pizzeria: base,
@@ -218,32 +289,17 @@ class DatabaseService {
     }
   }
 
-  /// Update business_rules table (single-tenant)
-  Future<void> updateBusinessRules(Map<String, dynamic> updates) async {
+  /// Update business_rules table for the current organization
+  Future<void> updateBusinessRules(
+    Map<String, dynamic> updates, {
+    String? organizationId,
+  }) async {
     try {
-      final payload = Map<String, dynamic>.from(updates);
-      // Remove immutable fields
-      const immutableFields = {'id', 'created_at', 'updated_at'};
-      payload.removeWhere((key, _) => immutableFields.contains(key));
-
-      // Add updated_at timestamp
-      payload['updated_at'] = _nowUtcIso();
-
-      // Fetch existing row to get its ID (single-tenant: one row)
-      final existing = await _client
-          .from('business_rules')
-          .select('id')
-          .maybeSingle();
-
-      if (existing != null) {
-        await _client
-            .from('business_rules')
-            .update(payload)
-            .eq('id', existing['id']);
-      } else {
-        // Insert if no row exists
-        await _client.from('business_rules').insert(payload);
-      }
+      await _upsertSettingsRow(
+        'business_rules',
+        updates,
+        organizationId: organizationId,
+      );
     } on PostgrestException catch (e) {
       throw DatabaseException(
         'Errore aggiornamento business rules: ${e.message}',
@@ -252,42 +308,77 @@ class DatabaseService {
   }
 
   Future<void> saveOrderManagementSettings(
-    OrderManagementSettings settings,
-  ) async {
-    await _upsertSettingsRow('order_management', settings.toJson());
+    OrderManagementSettings settings, {
+    String? organizationId,
+  }) async {
+    await _upsertSettingsRow(
+      'order_management',
+      settings.toJson(),
+      organizationId: organizationId,
+    );
   }
 
   Future<void> saveOrderManagementSettingsRaw(
-    Map<String, dynamic> values,
-  ) async {
-    await _upsertSettingsRow('order_management', values);
+    Map<String, dynamic> values, {
+    String? organizationId,
+  }) async {
+    await _upsertSettingsRow(
+      'order_management',
+      values,
+      organizationId: organizationId,
+    );
   }
 
   Future<void> saveDeliveryConfigurationSettings(
-    DeliveryConfigurationSettings settings,
-  ) async {
-    await _upsertSettingsRow('delivery_configuration', settings.toJson());
+    DeliveryConfigurationSettings settings, {
+    String? organizationId,
+  }) async {
+    await _upsertSettingsRow(
+      'delivery_configuration',
+      settings.toJson(),
+      organizationId: organizationId,
+    );
   }
 
   Future<void> saveDisplayBrandingSettings(
-    DisplayBrandingSettings settings,
-  ) async {
-    await _upsertSettingsRow('display_branding', settings.toJson());
+    DisplayBrandingSettings settings, {
+    String? organizationId,
+  }) async {
+    await _upsertSettingsRow(
+      'display_branding',
+      settings.toJson(),
+      organizationId: organizationId,
+    );
   }
 
   Future<void> saveKitchenManagementSettings(
-    KitchenManagementSettings settings,
-  ) async {
-    await _upsertSettingsRow('kitchen_management', settings.toJson());
+    KitchenManagementSettings settings, {
+    String? organizationId,
+  }) async {
+    await _upsertSettingsRow(
+      'kitchen_management',
+      settings.toJson(),
+      organizationId: organizationId,
+    );
   }
 
-  Future<void> saveBusinessRulesSettings(BusinessRulesSettings settings) async {
-    await _upsertSettingsRow('business_rules', settings.toJson());
+  Future<void> saveBusinessRulesSettings(
+    BusinessRulesSettings settings, {
+    String? organizationId,
+  }) async {
+    await _upsertSettingsRow(
+      'business_rules',
+      settings.toJson(),
+      organizationId: organizationId,
+    );
   }
 
   // ========== MENU ==========
 
-  Future<List<MenuItemModel>> getMenuItems({bool onlyAvailable = true}) async {
+  Future<List<MenuItemModel>> getMenuItems({
+    bool onlyAvailable = true,
+    String? organizationId,
+  }) async {
     try {
       var query = _client
           .from(AppConstants.tableMenuItems)
@@ -296,6 +387,9 @@ class DatabaseService {
             '*, menu_item_included_ingredients(menu_item_id, ingredients(nome))',
           );
 
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
       if (onlyAvailable) {
         query = query.eq('disponibile', true);
       }
@@ -379,9 +473,15 @@ class DatabaseService {
     );
   }
 
-  Future<MenuItemModel> createMenuItem(MenuItemModel item) async {
+  Future<MenuItemModel> createMenuItem(
+    MenuItemModel item, {
+    String? organizationId,
+  }) async {
     try {
       final payload = _menuItemInsertPayload(item);
+      if (organizationId != null) {
+        payload['organization_id'] = organizationId;
+      }
       final data = await _client
           .from(AppConstants.tableMenuItems)
           .insert(payload)
@@ -444,14 +544,12 @@ class DatabaseService {
   Future<void> verifyOrderPayment({
     required String orderId,
     required String paymentIntentId,
+    String? organizationId,
   }) async {
     try {
       final response = await _client.functions.invoke(
         'verify-payment',
-        body: {
-          'orderId': orderId,
-          'paymentIntentId': paymentIntentId,
-        },
+        body: {'orderId': orderId, 'paymentIntentId': paymentIntentId},
       );
 
       if (response.status != 200) {
@@ -465,6 +563,7 @@ class DatabaseService {
       try {
         await _client.from('payment_transactions').insert({
           'order_id': orderId,
+          if (organizationId != null) 'organization_id': organizationId,
           'payment_intent_id': paymentIntentId,
           'status': 'succeeded',
           'created_at': DateTime.now().toUtc().toIso8601String(),
@@ -473,7 +572,6 @@ class DatabaseService {
       } catch (e) {
         debugPrint('Failed to record payment transaction log: $e');
       }
-
     } on FunctionException catch (e) {
       throw DatabaseException('Errore verifica pagamento: ${e.reasonPhrase}');
     } catch (e) {
@@ -505,6 +603,7 @@ class DatabaseService {
     String? cashierCustomerId,
     OrderStatus status = OrderStatus.confirmed,
     String? zone,
+    String? organizationId,
   }) async {
     try {
       // Pass items AS-IS to RPC with minimal extraction for price validation
@@ -513,6 +612,7 @@ class DatabaseService {
         'items': items, // Pass complete items with all data including varianti
         'orderType': tipo.dbValue,
         'paymentMethod': metodoPagamento?.name ?? 'cash',
+        if (organizationId != null) 'organizationId': organizationId,
         'nomeCliente': nomeCliente,
         'telefonoCliente': telefonoCliente,
         'emailCliente': emailCliente,
@@ -565,6 +665,7 @@ class DatabaseService {
   Future<List<OrderModel>> getOrders({
     List<OrderStatus>? statuses,
     String? clienteId,
+    String? organizationId,
     int limit = AppConstants.defaultPageSize,
     int offset = 0,
     bool includeItems = true,
@@ -611,6 +712,9 @@ class DatabaseService {
 
       var query = _client.from(AppConstants.tableOrdini).select(selectColumns);
 
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
       if (statuses != null && statuses.isNotEmpty) {
         query = query.inFilter('stato', statuses.map((s) => s.name).toList());
       }
@@ -631,8 +735,13 @@ class DatabaseService {
 
   /// Return the raw order management settings row.
   /// Useful for reading fields not yet modeled in OrderManagementSettings.
-  Future<Map<String, dynamic>?> getOrderManagementSettingsRaw() async {
-    return _fetchSettingsRow('order_management');
+  Future<Map<String, dynamic>?> getOrderManagementSettingsRaw({
+    String? organizationId,
+  }) async {
+    return _fetchSettingsRow(
+      'order_management',
+      organizationId: organizationId,
+    );
   }
 
   /// Count total items within a time window (slot) for a given order type.
@@ -641,15 +750,22 @@ class DatabaseService {
     required DateTime slotStartUtc,
     required DateTime slotEndUtc,
     required OrderType type,
+    String? organizationId,
   }) async {
     try {
-      final res = await _client
+      var query = _client
           .from(AppConstants.tableOrdini)
           .select('id, ordini_items(quantita)')
           .eq('tipo', type.dbValue)
           .neq('stato', OrderStatus.cancelled.name)
           .gte('slot_prenotato_start', slotStartUtc.toIso8601String())
           .lt('slot_prenotato_start', slotEndUtc.toIso8601String());
+
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      final res = await query;
       final List data = res as List;
 
       int totalItems = 0;
@@ -674,15 +790,22 @@ class DatabaseService {
     required DateTime slotStartUtc,
     required DateTime slotEndUtc,
     required OrderType type,
+    String? organizationId,
   }) async {
     try {
-      final res = await _client
+      var query = _client
           .from(AppConstants.tableOrdini)
           .select('id')
           .eq('tipo', type.dbValue)
           .neq('stato', OrderStatus.cancelled.name)
           .gte('slot_prenotato_start', slotStartUtc.toIso8601String())
           .lt('slot_prenotato_start', slotEndUtc.toIso8601String());
+
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      final res = await query;
       final List data = res as List;
       return data.length;
     } on PostgrestException catch (e) {
@@ -697,15 +820,22 @@ class DatabaseService {
     required DateTime rangeStartUtc,
     required DateTime rangeEndUtc,
     required OrderType type,
+    String? organizationId,
   }) async {
     try {
-      final response = await _client
+      var query = _client
           .from(AppConstants.tableOrdini)
           .select('slot_prenotato_start, ordini_items(quantita)')
           .eq('tipo', type.dbValue)
           .neq('stato', OrderStatus.cancelled.name)
           .gte('slot_prenotato_start', rangeStartUtc.toIso8601String())
           .lt('slot_prenotato_start', rangeEndUtc.toIso8601String());
+
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      final response = await query;
 
       final List data = response as List;
       final counts = <DateTime, int>{};
@@ -868,6 +998,7 @@ class DatabaseService {
     DateTime? slotPrenotatoStart,
     String? cashierCustomerId,
     String? zone,
+    String? organizationId,
   }) async {
     try {
       // Pass items AS-IS to RPC (same as createOrder)
@@ -876,6 +1007,7 @@ class DatabaseService {
         'items': items, // Pass complete items with all data including varianti
         'orderType': tipo.dbValue,
         'paymentMethod': metodoPagamento?.name ?? 'cash',
+        if (organizationId != null) 'organizationId': organizationId,
         'nomeCliente': nomeCliente,
         'telefonoCliente': telefonoCliente,
         'emailCliente': emailCliente,
@@ -894,7 +1026,9 @@ class DatabaseService {
         'totale': totale,
       };
 
-      debugPrint('[updateOrder] Calling RPC for orderId: $orderId with ${items.length} items');
+      debugPrint(
+        '[updateOrder] Calling RPC for orderId: $orderId with ${items.length} items',
+      );
 
       final response = await placeOrder(requestData: requestBody);
       final returnedOrderId = response['orderId'] as String;
@@ -949,22 +1083,26 @@ class DatabaseService {
   /// 3. Contains query anywhere (e.g., "ombat" matches "Barrano Giombattista")
   /// Returns customers sorted by most recent orders first
   Future<List<CashierCustomerModel>> searchCashierCustomers(
-    String query,
-  ) async {
+    String query, {
+    String? organizationId,
+  }) async {
     if (query.trim().isEmpty) return [];
 
     try {
       final normalizedQuery = query.trim().toLowerCase();
-
       // Search patterns:
       // 1. Starts with query: "barr%"
       // 2. Has word starting with query: "% giom%" (space before)
       // 3. Contains query anywhere: "%ombat%"
-      final data = await _client
-          .from('cashier_customers')
-          .select()
+      var queryBase = _client.from('cashier_customers').select();
+
+      if (organizationId != null) {
+        queryBase = queryBase.eq('organization_id', organizationId);
+      }
+
+      final data = await queryBase
           .or(
-            'nome_normalized.ilike.$normalizedQuery%,nome_normalized.ilike.% $normalizedQuery%,nome_normalized.ilike.%$normalizedQuery%',
+            'nome_normalized.ilike."$normalizedQuery%",nome_normalized.ilike."% $normalizedQuery%",nome_normalized.ilike."%$normalizedQuery%"',
           )
           .order('ordini_count', ascending: false)
           .order('ultimo_ordine_at', ascending: false, nullsFirst: false)
@@ -1020,6 +1158,7 @@ class DatabaseService {
   Future<CashierCustomerModel?> findMatchingCustomer({
     required String nome,
     String? telefono,
+    String? organizationId,
   }) async {
     if (nome.trim().isEmpty) return null;
 
@@ -1033,12 +1172,15 @@ class DatabaseService {
       // First try: exact name match (including swapped) with phone validation
       if (normalizedPhone != null && normalizedPhone.length >= 6) {
         for (final namePattern in namePatterns) {
-          final exactMatch = await _client
+          var exactQuery = _client
               .from('cashier_customers')
               .select()
               .eq('nome_normalized', namePattern)
-              .eq('telefono_normalized', normalizedPhone)
-              .maybeSingle();
+              .eq('telefono_normalized', normalizedPhone);
+          if (organizationId != null) {
+            exactQuery = exactQuery.eq('organization_id', organizationId);
+          }
+          final exactMatch = await exactQuery.maybeSingle();
 
           if (exactMatch != null) {
             return CashierCustomerModel.fromJson(exactMatch);
@@ -1048,10 +1190,16 @@ class DatabaseService {
 
       // Second try: exact name match (including swapped, any phone or no phone)
       for (final namePattern in namePatterns) {
-        final nameMatch = await _client
+        var query = _client
             .from('cashier_customers')
             .select()
-            .eq('nome_normalized', namePattern)
+            .eq('nome_normalized', namePattern);
+
+        if (organizationId != null) {
+          query = query.eq('organization_id', organizationId);
+        }
+
+        final nameMatch = await query
             .order('ordini_count', ascending: false)
             .limit(1)
             .maybeSingle();
@@ -1090,10 +1238,16 @@ class DatabaseService {
         if (firstName.length >= 3 && !searchedFirstNames.contains(firstName)) {
           searchedFirstNames.add(firstName);
 
-          final fuzzyMatches = await _client
+          var query = _client
               .from('cashier_customers')
               .select()
-              .ilike('nome_normalized', '$firstName%')
+              .ilike('nome_normalized', '$firstName%');
+
+          if (organizationId != null) {
+            query = query.eq('organization_id', organizationId);
+          }
+
+          final fuzzyMatches = await query
               .order('ordini_count', ascending: false)
               .limit(5);
 
@@ -1141,11 +1295,13 @@ class DatabaseService {
     double? latitude,
     double? longitude,
     String? note,
+    String? organizationId,
   }) async {
     try {
       final data = await _client
           .from('cashier_customers')
           .insert({
+            if (organizationId != null) 'organization_id': organizationId,
             'nome': nome.trim(),
             'telefono': telefono?.trim(),
             'indirizzo': indirizzo?.trim(),
@@ -1180,6 +1336,7 @@ class DatabaseService {
     double? longitude,
     bool? updateGeocodedAt,
     String? note,
+    String? organizationId,
   }) async {
     try {
       final updates = <String, dynamic>{};
@@ -1205,12 +1362,14 @@ class DatabaseService {
         return CashierCustomerModel.fromJson(current);
       }
 
-      final data = await _client
+      var query = _client
           .from('cashier_customers')
           .update(updates)
-          .eq('id', customerId)
-          .select()
-          .single();
+          .eq('id', customerId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.select().single();
 
       return CashierCustomerModel.fromJson(data);
     } on PostgrestException catch (e) {
@@ -1222,20 +1381,24 @@ class DatabaseService {
   Future<void> incrementCustomerOrderStats({
     required String customerId,
     required double orderTotal,
+    String? organizationId,
   }) async {
     try {
       // Direct update to ensure ultimo_ordine_at is always set correctly
-      final current = await _client
+      var currentQuery = _client
           .from('cashier_customers')
           .select('ordini_count, totale_speso')
-          .eq('id', customerId)
-          .maybeSingle();
+          .eq('id', customerId);
+      if (organizationId != null) {
+        currentQuery = currentQuery.eq('organization_id', organizationId);
+      }
+      final current = await currentQuery.maybeSingle();
 
       if (current != null) {
         final newCount = (current['ordini_count'] as int? ?? 0) + 1;
         final newTotal = (current['totale_speso'] as num?)?.toDouble() ?? 0;
 
-        await _client
+        var updateQuery = _client
             .from('cashier_customers')
             .update({
               'ordini_count': newCount,
@@ -1243,6 +1406,10 @@ class DatabaseService {
               'ultimo_ordine_at': _nowUtcIso(),
             })
             .eq('id', customerId);
+        if (organizationId != null) {
+          updateQuery = updateQuery.eq('organization_id', organizationId);
+        }
+        await updateQuery;
       }
     } catch (e) {
       // Log error but don't fail flow
@@ -1251,13 +1418,19 @@ class DatabaseService {
   }
 
   /// Get a single cashier customer by ID
-  Future<CashierCustomerModel?> getCashierCustomer(String customerId) async {
+  Future<CashierCustomerModel?> getCashierCustomer(
+    String customerId, {
+    String? organizationId,
+  }) async {
     try {
-      final data = await _client
+      var query = _client
           .from('cashier_customers')
           .select()
-          .eq('id', customerId)
-          .maybeSingle();
+          .eq('id', customerId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.maybeSingle();
 
       if (data == null) return null;
       return CashierCustomerModel.fromJson(data);
@@ -1273,9 +1446,14 @@ class DatabaseService {
     int offset = 0,
     String sortBy = 'ordini_count',
     bool sortAscending = false,
+    String? organizationId,
   }) async {
     try {
       dynamic query = _client.from('cashier_customers').select();
+
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final normalizedQuery = searchQuery.trim().toLowerCase();
@@ -1312,6 +1490,7 @@ class DatabaseService {
     String cashierCustomerId, {
     int limit = 50,
     int offset = 0,
+    String? organizationId,
   }) async {
     try {
       final selectColumns = [
@@ -1352,10 +1531,14 @@ class DatabaseService {
         'ordini_items(id, ordine_id, menu_item_id, nome_prodotto, quantita, prezzo_unitario, subtotale, note, varianti, created_at)',
       ].join(', ');
 
-      final data = await _client
+      var query = _client
           .from(AppConstants.tableOrdini)
           .select(selectColumns)
-          .eq('cashier_customer_id', cashierCustomerId)
+          .eq('cashier_customer_id', cashierCustomerId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
@@ -1369,9 +1552,11 @@ class DatabaseService {
 
   /// Get all active (non-completed) reminders, sorted by priority and creation date
   /// Joins with orders to get order details
-  Future<List<OrderReminderModel>> getActiveReminders() async {
+  Future<List<OrderReminderModel>> getActiveReminders({
+    String? organizationId,
+  }) async {
     try {
-      final data = await _client
+      var query = _client
           .from('order_reminders')
           .select('''
             id,
@@ -1387,8 +1572,11 @@ class DatabaseService {
             updated_at,
             ordini:ordine_id(numero_ordine, nome_cliente)
           ''')
-          .eq('completato', false)
-          .order('created_at', ascending: false);
+          .eq('completato', false);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.order('created_at', ascending: false);
 
       return (data as List)
           .map((json) => OrderReminderModel.fromSupabase(json))
@@ -1399,9 +1587,12 @@ class DatabaseService {
   }
 
   /// Get reminders for a specific order
-  Future<List<OrderReminderModel>> getRemindersByOrder(String orderId) async {
+  Future<List<OrderReminderModel>> getRemindersByOrder(
+    String orderId, {
+    String? organizationId,
+  }) async {
     try {
-      final data = await _client
+      var query = _client
           .from('order_reminders')
           .select('''
             id,
@@ -1417,8 +1608,11 @@ class DatabaseService {
             updated_at,
             ordini:ordine_id(numero_ordine, nome_cliente)
           ''')
-          .eq('ordine_id', orderId)
-          .order('created_at', ascending: false);
+          .eq('ordine_id', orderId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.order('created_at', ascending: false);
 
       return (data as List)
           .map((json) => OrderReminderModel.fromSupabase(json))
@@ -1438,11 +1632,13 @@ class DatabaseService {
     ReminderPriority priorita = ReminderPriority.normal,
     DateTime? scadenza,
     String? createdBy,
+    String? organizationId,
   }) async {
     try {
       final data = await _client
           .from('order_reminders')
           .insert({
+            if (organizationId != null) 'organization_id': organizationId,
             'ordine_id': ordineId,
             'titolo': titolo.trim(),
             'descrizione': descrizione?.trim(),
@@ -1473,9 +1669,12 @@ class DatabaseService {
   }
 
   /// Mark a reminder as completed
-  Future<void> completeReminder(String reminderId) async {
+  Future<void> completeReminder(
+    String reminderId, {
+    String? organizationId,
+  }) async {
     try {
-      await _client
+      var query = _client
           .from('order_reminders')
           .update({
             'completato': true,
@@ -1483,15 +1682,26 @@ class DatabaseService {
             'updated_at': _nowUtcIso(),
           })
           .eq('id', reminderId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      await query;
     } on PostgrestException catch (e) {
       throw DatabaseException('Errore completamento promemoria: ${e.message}');
     }
   }
 
   /// Delete a reminder permanently
-  Future<void> deleteReminder(String reminderId) async {
+  Future<void> deleteReminder(
+    String reminderId, {
+    String? organizationId,
+  }) async {
     try {
-      await _client.from('order_reminders').delete().eq('id', reminderId);
+      var query = _client.from('order_reminders').delete().eq('id', reminderId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      await query;
     } on PostgrestException catch (e) {
       throw DatabaseException('Errore eliminazione promemoria: ${e.message}');
     }
@@ -1505,6 +1715,7 @@ class DatabaseService {
     ReminderPriority? priorita,
     DateTime? scadenza,
     bool? clearScadenza,
+    String? organizationId,
   }) async {
     try {
       final updates = <String, dynamic>{'updated_at': _nowUtcIso()};
@@ -1518,11 +1729,14 @@ class DatabaseService {
         updates['scadenza'] = null;
       }
 
-      final data = await _client
+      var query = _client
           .from('order_reminders')
           .update(updates)
-          .eq('id', reminderId)
-          .select('''
+          .eq('id', reminderId);
+      if (organizationId != null) {
+        query = query.eq('organization_id', organizationId);
+      }
+      final data = await query.select('''
             id,
             ordine_id,
             titolo,
@@ -1535,8 +1749,7 @@ class DatabaseService {
             created_at,
             updated_at,
             ordini:ordine_id(numero_ordine, nome_cliente)
-          ''')
-          .single();
+          ''').single();
 
       return OrderReminderModel.fromSupabase(data);
     } on PostgrestException catch (e) {

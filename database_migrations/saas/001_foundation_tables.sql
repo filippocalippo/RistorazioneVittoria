@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     nome TEXT,
     cognome TEXT,
     telefono TEXT,
+    indirizzo TEXT,
+    citta TEXT,
+    cap TEXT,
     ruolo TEXT NOT NULL DEFAULT 'customer' CHECK (ruolo IN ('manager', 'kitchen', 'delivery', 'customer')),
     avatar_url TEXT,
     fcm_token TEXT,
@@ -239,7 +242,11 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    SELECT ruolo FROM profiles WHERE id = auth.uid();
+    SELECT role
+    FROM organization_members
+    WHERE user_id = auth.uid()
+    AND organization_id = get_current_organization_id()
+    AND is_active = true;
 $$;
 
 -- Cached role check (used by RLS policies for performance)
@@ -250,7 +257,13 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    SELECT ruolo = 'manager' FROM profiles WHERE id = auth.uid();
+    SELECT EXISTS (
+        SELECT 1 FROM organization_members
+        WHERE organization_id = get_current_organization_id()
+        AND user_id = auth.uid()
+        AND role IN ('owner', 'manager')
+        AND is_active = true
+    );
 $$;
 
 CREATE OR REPLACE FUNCTION is_staff()
@@ -260,7 +273,13 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    SELECT ruolo IN ('manager', 'kitchen', 'delivery') FROM profiles WHERE id = auth.uid();
+    SELECT EXISTS (
+        SELECT 1 FROM organization_members
+        WHERE organization_id = get_current_organization_id()
+        AND user_id = auth.uid()
+        AND role IN ('owner', 'manager', 'kitchen', 'delivery')
+        AND is_active = true
+    );
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -364,20 +383,42 @@ CREATE POLICY "Users can view own profile" ON profiles
 DROP POLICY IF EXISTS "Staff can view all profiles" ON profiles;
 CREATE POLICY "Staff can view all profiles" ON profiles
     FOR SELECT TO authenticated
-    USING (is_staff());
+    USING (
+        EXISTS (
+            SELECT 1 FROM organization_members om
+            WHERE om.user_id = profiles.id
+            AND om.organization_id = get_current_organization_id()
+            AND om.is_active = true
+        )
+        AND is_staff()
+    );
 
 -- Users can update their own profile (except role)
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles
     FOR UPDATE TO authenticated
     USING (id = auth.uid())
-    WITH CHECK (id = auth.uid());
+    WITH CHECK (
+        id = auth.uid()
+        AND (
+            current_organization_id IS NULL
+            OR is_organization_member(current_organization_id)
+        )
+    );
 
 -- Managers can update any profile
 DROP POLICY IF EXISTS "Managers can update profiles" ON profiles;
 CREATE POLICY "Managers can update profiles" ON profiles
     FOR UPDATE TO authenticated
-    USING (is_manager());
+    USING (
+        is_manager()
+        AND EXISTS (
+            SELECT 1 FROM organization_members om
+            WHERE om.user_id = profiles.id
+            AND om.organization_id = get_current_organization_id()
+            AND om.is_active = true
+        )
+    );
 
 -- ---------------------------------------------------------------------------
 -- 10. RLS POLICIES: ORGANIZATIONS
@@ -387,7 +428,10 @@ CREATE POLICY "Managers can update profiles" ON profiles
 DROP POLICY IF EXISTS "Active organizations are public" ON organizations;
 CREATE POLICY "Active organizations are public" ON organizations
     FOR SELECT TO authenticated
-    USING (is_active = true);
+    USING (
+        is_active = true
+        AND (id = get_current_organization_id() OR is_organization_member(id))
+    );
 
 -- Only owners/managers can update their organization
 DROP POLICY IF EXISTS "Admins can update organization" ON organizations;

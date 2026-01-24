@@ -78,9 +78,13 @@ void main() async {
     if (EnvConfig.isWindows) {
       Logger.info('Initializing Auto Updater...', tag: 'Main');
       try {
-        // Replace with your actual project ID
-        const projectId = 'cnsuywzypkgqolersryr';
-        const feedUrl =
+        final supabaseUri = Uri.tryParse(EnvConfig.supabaseUrl);
+        final host = supabaseUri?.host;
+        final projectId = host?.split('.').first;
+        if (projectId == null || projectId.isEmpty) {
+          throw Exception('Supabase project ID not found in SUPABASE_URL');
+        }
+        final feedUrl =
             'https://$projectId.supabase.co/storage/v1/object/public/updates/appcast.xml';
 
         await autoUpdater.setFeedURL(feedUrl);

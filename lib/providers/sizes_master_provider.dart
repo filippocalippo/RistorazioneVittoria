@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/size_variant_model.dart';
@@ -15,11 +16,18 @@ class SizesMaster extends _$SizesMaster {
   Future<List<SizeVariantModel>> _fetchSizesMaster() async {
     final supabase = Supabase.instance.client;
 
+    // Get organization context for multi-tenant filtering
+    final orgId = await ref.read(currentOrganizationProvider.future);
+
     try {
-      final response = await supabase
-          .from('sizes_master')
-          .select()
-          .order('ordine', ascending: true);
+      var query = supabase.from('sizes_master').select();
+
+      // Multi-tenant filter: org-specific or global (null)
+      if (orgId != null) {
+        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      }
+
+      final response = await query.order('ordine', ascending: true);
 
       return (response as List)
           .map((json) => SizeVariantModel.fromJson(json))
@@ -33,8 +41,17 @@ class SizesMaster extends _$SizesMaster {
   Future<void> createSize(SizeVariantModel size) async {
     final supabase = Supabase.instance.client;
 
+    // Get organization context
+    final orgId = await ref.read(currentOrganizationProvider.future);
+
     try {
-      await supabase.from('sizes_master').insert(size.toJson());
+      final data = size.toJson();
+      // Include organization_id for multi-tenant isolation
+      if (orgId != null) {
+        data['organization_id'] = orgId;
+      }
+
+      await supabase.from('sizes_master').insert(data);
 
       // Refresh the list
       state = AsyncValue.data(await _fetchSizesMaster());

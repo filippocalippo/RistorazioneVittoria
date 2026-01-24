@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/category_model.dart';
@@ -20,10 +21,23 @@ class CategoriesNotifier
 
   Future<void> _loadCategories() async {
     try {
-      final response = await _supabase
-          .from('categorie_menu')
-          .select()
-          .order('ordine', ascending: true);
+      // Get current organization ID
+      final orgId = await ref.read(currentOrganizationProvider.future);
+
+      // Build query with multi-tenant filter
+      dynamic response;
+      if (orgId != null) {
+        response = await _supabase
+            .from('categorie_menu')
+            .select()
+            .or('organization_id.eq.$orgId,organization_id.is.null')
+            .order('ordine', ascending: true);
+      } else {
+        response = await _supabase
+            .from('categorie_menu')
+            .select()
+            .order('ordine', ascending: true);
+      }
 
       final categories = (response as List)
           .map((json) => CategoryModel.fromJson(json))
@@ -56,6 +70,9 @@ class CategoriesNotifier
           ? 0
           : categories.map((c) => c.ordine).reduce((a, b) => a > b ? a : b);
 
+      // Get current organization ID
+      final orgId = await ref.read(currentOrganizationProvider.future);
+
       final categoryData = {
         'nome': nome,
         'descrizione': descrizione,
@@ -67,6 +84,7 @@ class CategoriesNotifier
         'disattivazione_programmata': disattivazioneProgrammata,
         'giorni_disattivazione': giorniDisattivazione,
         'permetti_divisioni': permittiDivisioni,
+        'organization_id': orgId, // Multi-tenant
       };
 
       await _supabase.from('categorie_menu').insert(categoryData);
@@ -111,10 +129,7 @@ class CategoriesNotifier
         updateData['permetti_divisioni'] = permittiDivisioni;
       }
 
-      await _supabase
-          .from('categorie_menu')
-          .update(updateData)
-          .eq('id', id);
+      await _supabase.from('categorie_menu').update(updateData).eq('id', id);
 
       await refresh();
     } catch (e) {
@@ -124,10 +139,7 @@ class CategoriesNotifier
 
   Future<void> deleteCategory(String id) async {
     try {
-      await _supabase
-          .from('categorie_menu')
-          .delete()
-          .eq('id', id);
+      await _supabase.from('categorie_menu').delete().eq('id', id);
       await refresh();
     } catch (e) {
       rethrow;
@@ -157,20 +169,13 @@ class CategoriesNotifier
       final now = DateTime.now().toIso8601String();
       final updates = <Map<String, dynamic>>[
         for (var i = 0; i < reorderedCategories.length; i++)
-          {
-            'id': reorderedCategories[i].id,
-            'ordine': i,
-            'updated_at': now,
-          },
+          {'id': reorderedCategories[i].id, 'ordine': i, 'updated_at': now},
       ];
 
       if (updates.isNotEmpty) {
         await _supabase
             .from('categorie_menu')
-            .upsert(
-              updates,
-              onConflict: 'id',
-            );
+            .upsert(updates, onConflict: 'id');
       }
 
       await refresh();

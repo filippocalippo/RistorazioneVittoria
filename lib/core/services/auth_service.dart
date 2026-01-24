@@ -678,7 +678,7 @@ class AuthService {
     }
     
     // Ensure userProfile is not null here
-    final profile = userProfile!;
+    final profile = userProfile;
 
     // Check if user is active
     if (!profile.attivo) {

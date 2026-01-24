@@ -6,6 +6,7 @@ import '../../../DesignSystem/design_tokens.dart';
 import '../../../providers/ingredients_provider.dart';
 import '../../../providers/sizes_provider.dart';
 import '../../../core/models/ingredient_model.dart';
+import '../../../providers/organization_provider.dart';
 
 /// Master-Detail modal for editing ingredients matching the HTML mockup
 class InventoryEditModal extends ConsumerStatefulWidget {
@@ -212,16 +213,24 @@ class _InventoryEditModalState extends ConsumerState<InventoryEditModal> {
       // Save consumption rules
       if (!_isNew && _consumptionControllers.isNotEmpty) {
         final supabase = Supabase.instance.client;
+        final orgId = await ref.read(currentOrganizationProvider.future);
         for (var entry in _consumptionControllers.entries) {
           final qty = double.tryParse(entry.value.text) ?? 0;
           if (qty > 0) {
-            await supabase.from('ingredient_consumption_rules').upsert({
+            final payload = {
               'ingredient_id': ingredientData.id,
               'size_id': entry.key,
               'product_id': null,
               'quantity': qty,
               'updated_at': DateTime.now().toIso8601String(),
-            }, onConflict: 'ingredient_id,size_id,product_id');
+            };
+            if (orgId != null) {
+              payload['organization_id'] = orgId;
+            }
+            await supabase.from('ingredient_consumption_rules').upsert(
+              payload,
+              onConflict: 'ingredient_id,size_id,product_id',
+            );
           } else {
             await supabase
                 .from('ingredient_consumption_rules')

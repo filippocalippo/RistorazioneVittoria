@@ -1148,7 +1148,7 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
             value: value,
             onChanged: onChanged,
             activeTrackColor: activeColor,
-            activeColor: Colors.white,
+            activeThumbColor: Colors.white,
           ),
         ],
       ),

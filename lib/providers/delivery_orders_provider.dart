@@ -7,6 +7,7 @@ import '../core/utils/enums.dart';
 import 'auth_provider.dart';
 import '../core/exceptions/app_exceptions.dart';
 import '../core/utils/logger.dart';
+import 'organization_provider.dart';
 
 part 'delivery_orders_provider.g.dart';
 
@@ -21,10 +22,12 @@ class DeliveryOrders extends _$DeliveryOrders {
     }
 
     final db = DatabaseService();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
     // Delivery sees ready and delivering orders
     return await db.getOrders(
       statuses: [OrderStatus.ready, OrderStatus.delivering],
       limit: 50,
+      organizationId: orgId,
     );
   }
 
@@ -88,9 +91,15 @@ Stream<List<OrderModel>> deliveryOrdersRealtime(Ref ref) {
   ];
 
   final realtime = RealtimeService();
-  return realtime.watchOrdersByStatus(statuses: watchedStatuses, limit: 200).map((
-    orders,
-  ) {
+  final orgIdFuture = ref.watch(currentOrganizationProvider.future);
+  return Stream.fromFuture(orgIdFuture).asyncExpand((orgId) {
+    return realtime
+        .watchOrdersByStatus(
+          statuses: watchedStatuses,
+          limit: 200,
+          organizationId: orgId,
+        )
+        .map((orders) {
     Logger.debug(
       'Delivery realtime update: ${orders.length} orders for filtering',
       tag: 'DeliveryOrders',
@@ -111,6 +120,7 @@ Stream<List<OrderModel>> deliveryOrdersRealtime(Ref ref) {
     final sorted = [...myOrders]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return sorted;
+  });
   });
 }
 

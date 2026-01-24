@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../DesignSystem/design_tokens.dart';
 import '../../../core/models/delivery_zone_model.dart';
 import '../../../providers/delivery_zones_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/geometry_utils.dart';
 
@@ -125,8 +126,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     }
 
     // Create zone model
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final zone = DeliveryZoneModel(
       id: widget.editingZone?.id ?? '',
+      organizationId: orgId ?? widget.editingZone?.organizationId,
       name: _nameController.text.trim(),
       color: _selectedColor,
       polygon: _polygonPoints,
@@ -151,9 +154,13 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
       final service = ref.read(deliveryZonesServiceProvider);
       
       if (widget.editingZone != null) {
-        await service.updateZone(widget.editingZone!.id, zone);
+        await service.updateZone(
+          widget.editingZone!.id,
+          zone,
+          organizationId: orgId,
+        );
       } else {
-        await service.createZone(zone);
+        await service.createZone(zone, organizationId: orgId);
       }
 
       if (mounted) {

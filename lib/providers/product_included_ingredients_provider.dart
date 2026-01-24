@@ -1,6 +1,8 @@
+// Organization filtering handled via menu_item_id scoping (menu items are org-filtered)
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/menu_item_included_ingredient_model.dart';
+import 'organization_provider.dart';
 
 part 'product_included_ingredients_provider.g.dart';
 
@@ -14,13 +16,19 @@ class ProductIncludedIngredients extends _$ProductIncludedIngredients {
   Future<List<MenuItemIncludedIngredientModel>>
   _fetchProductIncludedIngredients(String menuItemId) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      final response = await supabase
+      var query = supabase
           .from('menu_item_included_ingredients')
           .select('*, ingredients(*)')
-          .eq('menu_item_id', menuItemId)
-          .order('ordine', ascending: true);
+          .eq('menu_item_id', menuItemId);
+
+      if (orgId != null) {
+        query = query.eq('organization_id', orgId);
+      }
+
+      final response = await query.order('ordine', ascending: true);
 
       final allIncluded = (response as List).map((json) {
         // Parse the joined ingredient data
@@ -48,9 +56,11 @@ class ProductIncludedIngredients extends _$ProductIncludedIngredients {
     int ordine,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase.from('menu_item_included_ingredients').insert({
+        if (orgId != null) 'organization_id': orgId,
         'menu_item_id': menuItemId,
         'ingredient_id': ingredientId,
         'ordine': ordine,
@@ -132,6 +142,7 @@ class ProductIncludedIngredients extends _$ProductIncludedIngredients {
     List<MenuItemIncludedIngredientModel> ingredients,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase
@@ -142,6 +153,7 @@ class ProductIncludedIngredients extends _$ProductIncludedIngredients {
       if (ingredients.isNotEmpty) {
         final payload = ingredients.map((ingredient) {
           return {
+            if (orgId != null) 'organization_id': orgId,
             'menu_item_id': menuItemId,
             'ingredient_id': ingredient.ingredientId,
             'ordine': ingredient.ordine,

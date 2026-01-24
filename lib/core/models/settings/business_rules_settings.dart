@@ -13,6 +13,7 @@ String? _dateToJson(DateTime? value) => value?.toUtc().toIso8601String();
 @freezed
 class BusinessRulesSettings with _$BusinessRulesSettings {
   const factory BusinessRulesSettings({
+    @JsonKey(name: 'organization_id') String? organizationId,
     @Default(true) bool attiva,
     @JsonKey(name: 'chiusura_temporanea')
     @Default(false)

@@ -5,6 +5,7 @@ import '../../../providers/cart_provider.dart';
 import '../../../providers/menu_provider.dart';
 import '../../../providers/pizzeria_settings_provider.dart';
 import '../../../providers/addresses_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/enums.dart';
 import '../../../core/models/user_address_model.dart';
@@ -124,9 +125,12 @@ class _CheckoutTimeSelectionScreenState extends ConsumerState<CheckoutTimeSelect
 
     try {
       final db = ref.read(databaseServiceProvider);
+      final orgId = await ref.read(currentOrganizationProvider.future);
       final cart = ref.read(cartProvider);
       final currentCartItems = cart.fold<int>(0, (sum, item) => sum + item.quantity);
-      final raw = await db.getOrderManagementSettingsRaw();
+      final raw = await db.getOrderManagementSettingsRaw(
+        organizationId: orgId,
+      );
       final capDelivery = (raw?['capacity_delivery_per_slot'] as int?) ?? 50;
       final capTakeaway = (raw?['capacity_takeaway_per_slot'] as int?) ?? 50;
       final capacity = widget.orderType == OrderType.delivery ? capDelivery : capTakeaway;
@@ -139,7 +143,12 @@ class _CheckoutTimeSelectionScreenState extends ConsumerState<CheckoutTimeSelect
 
       final rangeStartUtc = allSlots.first.toUtc();
       final rangeEndUtc = allSlots.last.add(Duration(minutes: effectiveSlotMinutes)).toUtc();
-      final slotCounts = await db.getItemCountsBySlotRange(rangeStartUtc: rangeStartUtc, rangeEndUtc: rangeEndUtc, type: widget.orderType);
+      final slotCounts = await db.getItemCountsBySlotRange(
+        rangeStartUtc: rangeStartUtc,
+        rangeEndUtc: rangeEndUtc,
+        type: widget.orderType,
+        organizationId: orgId,
+      );
 
       for (final slot in allSlots) {
         final slotKey = slot.toUtc();

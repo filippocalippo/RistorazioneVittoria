@@ -4,6 +4,7 @@ import '../core/models/user_model.dart';
 import '../core/utils/enums.dart';
 import '../core/utils/logger.dart';
 import 'auth_provider.dart';
+import 'organization_provider.dart';
 
 /// Provider per ottenere tutti gli utenti di una pizzeria
 class PizzeriaUsersNotifier extends AsyncNotifier<List<UserModel>> {
@@ -13,16 +14,22 @@ class PizzeriaUsersNotifier extends AsyncNotifier<List<UserModel>> {
     if (currentUser == null) {
       return [];
     }
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    if (orgId == null) {
+      return [];
+    }
 
     try {
       final response = await SupabaseConfig.client
-          .from('profiles')
-          .select()
-          .order('created_at', ascending: false);
+          .from('organization_members')
+          .select('role, is_active, profiles:profiles(*)')
+          .eq('organization_id', orgId)
+          .eq('is_active', true);
 
-      final users = (response as List)
-          .map((data) => _parseUserModel(data))
-          .toList();
+      final users = (response as List).map((data) {
+        final profile = data['profiles'] as Map<String, dynamic>? ?? {};
+        return _parseUserModel(profile, overrideRole: data['role'] as String?);
+      }).toList();
 
       Logger.debug(
         'Loaded ${users.length} users for current pizzeria',
@@ -39,13 +46,17 @@ class PizzeriaUsersNotifier extends AsyncNotifier<List<UserModel>> {
   /// Aggiorna il ruolo di un utente
   Future<void> updateUserRole(String userId, UserRole newRole) async {
     try {
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      if (orgId == null) return;
+
       await SupabaseConfig.client
-          .from('profiles')
+          .from('organization_members')
           .update({
-            'ruolo': newRole.name,
+            'role': newRole.name,
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           })
-          .eq('id', userId);
+          .eq('user_id', userId)
+          .eq('organization_id', orgId);
 
       Logger.debug(
         'Updated user role to ${newRole.name}',
@@ -67,13 +78,17 @@ class PizzeriaUsersNotifier extends AsyncNotifier<List<UserModel>> {
   /// Attiva/disattiva un utente
   Future<void> toggleUserStatus(String userId, bool isActive) async {
     try {
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      if (orgId == null) return;
+
       await SupabaseConfig.client
-          .from('profiles')
+          .from('organization_members')
           .update({
-            'attivo': isActive,
+            'is_active': isActive,
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           })
-          .eq('id', userId);
+          .eq('user_id', userId)
+          .eq('organization_id', orgId);
 
       Logger.debug(
         'Updated user status to ${isActive ? "active" : "inactive"}',
@@ -92,7 +107,10 @@ class PizzeriaUsersNotifier extends AsyncNotifier<List<UserModel>> {
     }
   }
 
-  UserModel _parseUserModel(Map<String, dynamic> data) {
+  UserModel _parseUserModel(
+    Map<String, dynamic> data, {
+    String? overrideRole,
+  }) {
     DateTime? parseDateTime(dynamic value) {
       if (value == null) return null;
       if (value is DateTime) return value;
@@ -109,7 +127,7 @@ class PizzeriaUsersNotifier extends AsyncNotifier<List<UserModel>> {
       indirizzo: data['indirizzo'] as String?,
       citta: data['citta'] as String?,
       cap: data['cap'] as String?,
-      ruolo: UserRole.fromString(data['ruolo'] as String),
+      ruolo: UserRole.fromString(overrideRole ?? (data['ruolo'] as String)),
       avatarUrl: data['avatar_url'] as String?,
       fcmToken: data['fcm_token'] as String?,
       attivo: data['attivo'] as bool? ?? true,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/promotional_banner_model.dart';
 import '../core/config/supabase_config.dart';
 import '../core/utils/logger.dart';
+import 'organization_provider.dart';
 
 part 'promotional_banners_provider.g.dart';
 
@@ -14,13 +15,26 @@ class PromotionalBanners extends _$PromotionalBanners {
   }
 
   Future<List<PromotionalBannerModel>> _fetchBanners() async {
+    final orgId = await ref.read(currentOrganizationProvider.future);
+
     try {
-      final response = await SupabaseConfig.client
-          .from('promotional_banners')
-          .select()
-          .eq('attivo', true)
-          .order('priorita', ascending: false)
-          .order('ordine', ascending: true);
+      dynamic response;
+      if (orgId != null) {
+        response = await SupabaseConfig.client
+            .from('promotional_banners')
+            .select()
+            .eq('attivo', true)
+            .or('organization_id.eq.$orgId,organization_id.is.null')
+            .order('priorita', ascending: false)
+            .order('ordine', ascending: true);
+      } else {
+        response = await SupabaseConfig.client
+            .from('promotional_banners')
+            .select()
+            .eq('attivo', true)
+            .order('priorita', ascending: false)
+            .order('ordine', ascending: true);
+      }
 
       final now = DateTime.now();
       final banners = (response as List)
@@ -58,27 +72,23 @@ class PromotionalBanners extends _$PromotionalBanners {
 
   Future<void> incrementView(String bannerId) async {
     try {
-      await SupabaseConfig.client.rpc('increment_banner_view', params: {
-        'banner_id': bannerId,
-      });
-    } catch (e) {
-      Logger.warning(
-        'Failed to increment banner view: $e',
-        tag: 'Banners',
+      await SupabaseConfig.client.rpc(
+        'increment_banner_view',
+        params: {'banner_id': bannerId},
       );
+    } catch (e) {
+      Logger.warning('Failed to increment banner view: $e', tag: 'Banners');
     }
   }
 
   Future<void> incrementClick(String bannerId) async {
     try {
-      await SupabaseConfig.client.rpc('increment_banner_click', params: {
-        'banner_id': bannerId,
-      });
-    } catch (e) {
-      Logger.warning(
-        'Failed to increment banner click: $e',
-        tag: 'Banners',
+      await SupabaseConfig.client.rpc(
+        'increment_banner_click',
+        params: {'banner_id': bannerId},
       );
+    } catch (e) {
+      Logger.warning('Failed to increment banner click: $e', tag: 'Banners');
     }
   }
 }

@@ -6,6 +6,7 @@ import '../core/utils/enums.dart';
 import '../core/utils/model_parsers.dart';
 import '../core/utils/logger.dart';
 import 'users_provider.dart';
+import 'organization_provider.dart';
 
 part 'delivery_revenue_provider.g.dart';
 
@@ -103,15 +104,26 @@ class DeliveryRevenue extends _$DeliveryRevenue {
       final startOfDay = DateTime(date.year, date.month, date.day);
       final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
+      // Get organization context for multi-tenant filtering
+      final orgId = await ref.read(currentOrganizationProvider.future);
+
       Logger.debug(
         'Fetching delivery revenue for ${date.toIso8601String().split('T')[0]}',
         tag: 'DeliveryRevenue',
       );
 
-      // Fetch all completed delivery orders for the selected date
-      final ordersResponse = await SupabaseConfig.client
+      // Build base query
+      var query = SupabaseConfig.client
           .from('ordini')
-          .select('*, ordini_items(*)')
+          .select('*, ordini_items(*)');
+
+      // Multi-tenant filter: org-specific or global (null)
+      if (orgId != null) {
+        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      }
+
+      // Fetch all completed delivery orders for the selected date
+      final ordersResponse = await query
           .eq('tipo', 'delivery')
           .eq('stato', 'completed')
           .gte('slot_prenotato_start', startOfDay.toUtc().toIso8601String())

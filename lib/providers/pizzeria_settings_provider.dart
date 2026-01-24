@@ -8,6 +8,7 @@ import '../core/models/settings/business_rules_settings.dart';
 import '../core/services/database_service.dart';
 import '../core/services/app_cache_service.dart';
 import '../core/utils/logger.dart';
+import 'organization_provider.dart';
 
 part 'pizzeria_settings_provider.g.dart';
 
@@ -19,8 +20,11 @@ class PizzeriaSettings extends _$PizzeriaSettings {
 
   @override
   Future<PizzeriaSettingsModel?> build() async {
+    final orgId = await ref.watch(currentOrganizationProvider.future);
     // Fetch from database
-    final settings = await _database.getPizzeriaSettings();
+    final settings = await _database.getPizzeriaSettings(
+      organizationId: orgId,
+    );
     
     // Cache the fetched data for next startup
     await AppCacheService.cachePizzeriaInfo(
@@ -38,7 +42,11 @@ class PizzeriaSettings extends _$PizzeriaSettings {
   }
 
   Future<void> updatePizzeria(Map<String, dynamic> updates) async {
-    await _database.updateBusinessRules(updates);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.updateBusinessRules(
+      updates,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
@@ -47,44 +55,73 @@ class PizzeriaSettings extends _$PizzeriaSettings {
   }
 
   Future<void> saveOrderManagement(OrderManagementSettings settings) async {
-    await _database.saveOrderManagementSettings(settings);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.saveOrderManagementSettings(
+      settings,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
   Future<void> saveOrderManagementRaw(Map<String, dynamic> values) async {
-    await _database.saveOrderManagementSettingsRaw(values);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.saveOrderManagementSettingsRaw(
+      values,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
   Future<void> saveDeliveryConfiguration(
     DeliveryConfigurationSettings settings,
   ) async {
-    await _database.saveDeliveryConfigurationSettings(settings);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.saveDeliveryConfigurationSettings(
+      settings,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
   Future<void> saveBranding(DisplayBrandingSettings settings) async {
-    await _database.saveDisplayBrandingSettings(settings);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.saveDisplayBrandingSettings(
+      settings,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
   Future<void> saveKitchen(KitchenManagementSettings settings) async {
-    await _database.saveKitchenManagementSettings(settings);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.saveKitchenManagementSettings(
+      settings,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
   Future<void> saveBusinessRules(BusinessRulesSettings settings) async {
-    await _database.saveBusinessRulesSettings(settings);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.saveBusinessRulesSettings(
+      settings,
+      organizationId: orgId,
+    );
     await refresh();
   }
 
   Future<void> toggleActive(bool active) async {
-    await _database.updateBusinessRules({'attiva': active});
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _database.updateBusinessRules(
+      {'attiva': active},
+      organizationId: orgId,
+    );
 
     final current = state.value;
     final business = current?.businessRules ?? BusinessRulesSettings.defaults();
     await _database.saveBusinessRulesSettings(
       business.copyWith(attiva: active),
+      organizationId: orgId,
     );
     await refresh();
   }

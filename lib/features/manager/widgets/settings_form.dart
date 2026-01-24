@@ -17,6 +17,7 @@ import '../../../core/models/settings/pizzeria_settings_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/widgets/cached_network_image.dart';
 import '../../../providers/pizzeria_settings_provider.dart';
+import '../../../providers/organization_provider.dart';
 import '../screens/settings_screen.dart';
 import 'cities_management_section.dart';
 
@@ -212,7 +213,9 @@ class _SettingsFormState extends ConsumerState<SettingsForm> {
 
     // Fetch raw order management settings to hydrate capacity fields
     final db = DatabaseService();
-    db.getOrderManagementSettingsRaw().then((raw) {
+    ref.read(currentOrganizationProvider.future).then((orgId) {
+      return db.getOrderManagementSettingsRaw(organizationId: orgId);
+    }).then((raw) {
         if (!mounted) return;
         final capTk = (raw?['capacity_takeaway_per_slot'] as int?) ?? 50;
         final capDl = (raw?['capacity_delivery_per_slot'] as int?) ?? 50;

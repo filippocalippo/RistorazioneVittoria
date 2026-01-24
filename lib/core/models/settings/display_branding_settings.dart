@@ -8,6 +8,7 @@ part 'display_branding_settings.g.dart';
 @freezed
 class DisplayBrandingSettings with _$DisplayBrandingSettings {
   const factory DisplayBrandingSettings({
+    @JsonKey(name: 'organization_id') String? organizationId,
     @JsonKey(name: 'mostra_allergeni') @Default(true) bool mostraAllergeni,
     @JsonKey(name: 'colore_primario') @Default('#FF6B35') String colorePrimario,
     @JsonKey(name: 'colore_secondario')

@@ -8,6 +8,7 @@ part 'order_management_settings.g.dart';
 @freezed
 class OrderManagementSettings with _$OrderManagementSettings {
   const factory OrderManagementSettings({
+    @JsonKey(name: 'organization_id') String? organizationId,
     @JsonKey(name: 'ordini_consegna_attivi')
     @Default(true)
     bool ordiniConsegnaAttivi,

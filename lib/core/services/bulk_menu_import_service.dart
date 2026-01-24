@@ -23,6 +23,10 @@ class ImportResult {
 /// Service for bulk importing menu items from formatted text
 class BulkMenuImportService {
   final _supabase = Supabase.instance.client;
+  final String? _organizationId;
+
+  BulkMenuImportService({String? organizationId})
+      : _organizationId = organizationId;
 
   /// Parse and import menu items from formatted text
   Future<ImportResult> importFromText(
@@ -216,9 +220,13 @@ class BulkMenuImportService {
   }
 
   Future<Map<String, String>> _fetchExistingCategories() async {
-    final response = await _supabase
+    var query = _supabase
         .from('categorie_menu')
         .select('id, nome');
+    if (_organizationId != null) {
+      query = query.eq('organization_id', _organizationId);
+    }
+    final response = await query;
 
     final Map<String, String> categories = {};
     for (var item in response as List) {
@@ -228,9 +236,13 @@ class BulkMenuImportService {
   }
 
   Future<Map<String, String>> _fetchExistingIngredients() async {
-    final response = await _supabase
+    var query = _supabase
         .from('ingredients')
         .select('id, nome');
+    if (_organizationId != null) {
+      query = query.eq('organization_id', _organizationId);
+    }
+    final response = await query;
 
     final Map<String, String> ingredients = {};
     for (var item in response as List) {
@@ -240,9 +252,13 @@ class BulkMenuImportService {
   }
 
   Future<Map<String, String>> _fetchExistingSizes() async {
-    final response = await _supabase
+    var query = _supabase
         .from('sizes_master')
         .select('id, nome');
+    if (_organizationId != null) {
+      query = query.eq('organization_id', _organizationId);
+    }
+    final response = await query;
 
     final Map<String, String> sizes = {};
     for (var item in response as List) {
@@ -256,6 +272,7 @@ class BulkMenuImportService {
     int order,
   ) async {
     await _supabase.from('categorie_menu').insert({
+      if (_organizationId != null) 'organization_id': _organizationId,
       'nome': name,
       'ordine': order,
       'attiva': true,
@@ -269,6 +286,7 @@ class BulkMenuImportService {
     final response = await _supabase
         .from('ingredients')
         .insert({
+          if (_organizationId != null) 'organization_id': _organizationId,
           'nome': name,
           'prezzo': 0.0,
           'ordine': order,
@@ -291,6 +309,7 @@ class BulkMenuImportService {
     final response = await _supabase
         .from('sizes_master')
         .insert({
+          if (_organizationId != null) 'organization_id': _organizationId,
           'nome': name,
           'slug': slug,
           'price_multiplier': priceMultiplier,
@@ -311,11 +330,14 @@ class BulkMenuImportService {
   }
 
   Future<String?> _getCategoryId(String categoryName) async {
-    final response = await _supabase
+    var query = _supabase
         .from('categorie_menu')
         .select('id')
-        .ilike('nome', _sanitizeLikePattern(categoryName))
-        .maybeSingle();
+        .ilike('nome', _sanitizeLikePattern(categoryName));
+    if (_organizationId != null) {
+      query = query.eq('organization_id', _organizationId);
+    }
+    final response = await query.maybeSingle();
 
     return response?['id'] as String?;
   }
@@ -333,6 +355,7 @@ class BulkMenuImportService {
     final menuItemResponse = await _supabase
         .from('menu_items')
         .insert({
+          if (_organizationId != null) 'organization_id': _organizationId,
           'categoria_id': categoryId,
           'nome': name,
           'prezzo': basePrice,
@@ -358,6 +381,7 @@ class BulkMenuImportService {
     if (ingredientIds.isNotEmpty) {
       final ingredientInserts = ingredientIds.asMap().entries.map((entry) {
         return {
+          if (_organizationId != null) 'organization_id': _organizationId,
           'menu_item_id': menuItemId,
           'ingredient_id': entry.value,
           'ordine': entry.key,
@@ -374,6 +398,7 @@ class BulkMenuImportService {
       final sizeInserts = sizeIds.asMap().entries.map((entry) {
         final index = entry.key;
         return {
+          if (_organizationId != null) 'organization_id': _organizationId,
           'menu_item_id': menuItemId,
           'size_id': entry.value,
           'ordine': index,

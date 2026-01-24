@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.business_rules (
     data_chiusura_a TIMESTAMPTZ,
     indirizzo TEXT, citta TEXT, cap TEXT, provincia TEXT,
     telefono TEXT, email TEXT,
+    immagine_copertina_url TEXT,
     latitude NUMERIC, longitude NUMERIC,
     orari JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -25,13 +26,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_business_rules_org ON business_rules(organ
 CREATE TABLE IF NOT EXISTS public.delivery_configuration (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    tipo_calcolo TEXT DEFAULT 'zone' CHECK (tipo_calcolo IN ('zone', 'radiale', 'flat')),
-    costo_fisso NUMERIC(10,2) DEFAULT 0, ordine_minimo NUMERIC(10,2) DEFAULT 0,
-    consegna_gratuita_sopra NUMERIC(10,2),
-    tariffa_per_km NUMERIC(10,2) DEFAULT 0, tariffa_base NUMERIC(10,2) DEFAULT 0,
-    distanza_gratuita_km NUMERIC DEFAULT 0, distanza_massima_km NUMERIC,
-    slot_duration_minutes INTEGER DEFAULT 30, max_orders_per_slot INTEGER DEFAULT 5,
-    tempo_preparazione_minuti INTEGER DEFAULT 30, tempo_consegna_minuti INTEGER DEFAULT 20,
+    tipo_calcolo_consegna TEXT DEFAULT 'fisso' CHECK (tipo_calcolo_consegna IN ('fisso', 'radiale', 'zone')),
+    costo_consegna_base NUMERIC(10,2) DEFAULT 3.0,
+    costo_consegna_per_km NUMERIC(10,2) DEFAULT 0.5,
+    raggio_consegna_km NUMERIC DEFAULT 5.0,
+    consegna_gratuita_sopra NUMERIC(10,2) DEFAULT 30.0,
+    tempo_consegna_stimato_min INTEGER DEFAULT 30,
+    tempo_consegna_stimato_max INTEGER DEFAULT 60,
+    zone_consegna_personalizzate JSONB DEFAULT '[]'::jsonb,
+    costo_consegna_radiale JSONB DEFAULT '[]'::jsonb,
+    prezzo_fuori_raggio NUMERIC(10,2) DEFAULT 0.0,
     created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_configuration_org ON delivery_configuration(organization_id);
@@ -40,11 +44,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_configuration_org ON delivery_con
 CREATE TABLE IF NOT EXISTS public.order_management (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    ordini_consegna_attivi BOOLEAN DEFAULT true, ordini_asporto_attivi BOOLEAN DEFAULT true,
-    ordini_locale_attivi BOOLEAN DEFAULT false, ordini_prenotati_attivi BOOLEAN DEFAULT true,
-    max_giorni_prenotazione INTEGER DEFAULT 7, ordine_minimo_globale NUMERIC(10,2) DEFAULT 0,
-    auto_conferma_ordini BOOLEAN DEFAULT false, stampa_automatica BOOLEAN DEFAULT false,
-    stampante_default TEXT,
+    ordini_consegna_attivi BOOLEAN DEFAULT true,
+    ordini_asporto_attivi BOOLEAN DEFAULT true,
+    ordini_tavolo_attivi BOOLEAN DEFAULT true,
+    ordine_minimo NUMERIC(10,2) DEFAULT 10.0,
+    tempo_preparazione_medio INTEGER DEFAULT 30,
+    tempo_slot_minuti INTEGER DEFAULT 30,
+    capacity_takeaway_per_slot INTEGER DEFAULT 50,
+    capacity_delivery_per_slot INTEGER DEFAULT 50,
+    pausa_ordini_attiva BOOLEAN DEFAULT false,
+    accetta_pagamenti_contanti BOOLEAN DEFAULT true,
+    accetta_pagamenti_carta BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_order_management_org ON order_management(organization_id);
@@ -53,9 +63,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_order_management_org ON order_management(o
 CREATE TABLE IF NOT EXISTS public.kitchen_management (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    display_mode TEXT DEFAULT 'list', items_per_page INTEGER DEFAULT 10,
-    auto_refresh_seconds INTEGER DEFAULT 30, suono_nuovo_ordine BOOLEAN DEFAULT true,
-    suono_ordine_urgente BOOLEAN DEFAULT true, stati_visibili TEXT[] DEFAULT ARRAY['confirmed', 'preparing', 'ready']::TEXT[],
+    stampa_automatica_ordini BOOLEAN DEFAULT false,
+    mostra_note_cucina BOOLEAN DEFAULT true,
+    alert_sonoro_nuovo_ordine BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_kitchen_management_org ON kitchen_management(organization_id);
@@ -64,12 +74,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_kitchen_management_org ON kitchen_manageme
 CREATE TABLE IF NOT EXISTS public.display_branding (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    logo_url TEXT, logo_dark_url TEXT, favicon_url TEXT,
-    primary_color TEXT DEFAULT '#FF5722', secondary_color TEXT DEFAULT '#FFC107', accent_color TEXT DEFAULT '#4CAF50',
-    font_family TEXT DEFAULT 'Roboto', heading_font_family TEXT,
-    mostra_prezzi BOOLEAN DEFAULT true, mostra_descrizioni BOOLEAN DEFAULT true,
-    mostra_immagini BOOLEAN DEFAULT true, mostra_allergeni BOOLEAN DEFAULT true,
-    custom_css TEXT, custom_js TEXT,
+    mostra_allergeni BOOLEAN DEFAULT true,
+    colore_primario TEXT DEFAULT '#FF6B35',
+    colore_secondario TEXT DEFAULT '#004E89',
     created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_display_branding_org ON display_branding(organization_id);
@@ -88,11 +95,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboard_security_org ON dashboard_securi
 CREATE TABLE IF NOT EXISTS public.promotional_banners (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    titolo TEXT NOT NULL, sottotitolo TEXT, immagine_url TEXT,
-    cta_testo TEXT, cta_link TEXT, cta_tipo TEXT DEFAULT 'link', cta_target_id UUID,
-    posizione TEXT DEFAULT 'home', ordine INTEGER DEFAULT 0,
-    attivo BOOLEAN DEFAULT false, data_inizio TIMESTAMPTZ, data_fine TIMESTAMPTZ,
-    impressions INTEGER DEFAULT 0, clicks INTEGER DEFAULT 0,
+    titolo TEXT NOT NULL,
+    descrizione TEXT,
+    immagine_url TEXT NOT NULL,
+    action_type TEXT NOT NULL DEFAULT 'none',
+    action_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    text_overlay JSONB,
+    attivo BOOLEAN DEFAULT false,
+    data_inizio TIMESTAMPTZ,
+    data_fine TIMESTAMPTZ,
+    priorita INTEGER DEFAULT 0,
+    ordine INTEGER DEFAULT 0,
+    mostra_solo_mobile BOOLEAN DEFAULT false,
+    mostra_solo_desktop BOOLEAN DEFAULT false,
+    visualizzazioni INTEGER DEFAULT 0,
+    click INTEGER DEFAULT 0,
+    is_sponsorizzato BOOLEAN DEFAULT false,
+    sponsor_nome TEXT,
+    sponsor_logo_url TEXT,
     created_by UUID REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -108,6 +128,7 @@ CREATE TABLE IF NOT EXISTS public.ingredient_consumption_rules (
     size_id UUID REFERENCES sizes_master(id) ON DELETE SET NULL,
     quantity NUMERIC NOT NULL DEFAULT 1, unit_of_measure TEXT DEFAULT 'unit',
     created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(product_id, ingredient_id, size_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ingredient_consumption_rules_org ON ingredient_consumption_rules(organization_id);
@@ -117,10 +138,11 @@ CREATE TABLE IF NOT EXISTS public.inventory_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     ingredient_id UUID NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
-    ordine_id UUID REFERENCES ordini(id) ON DELETE SET NULL,
-    tipo TEXT NOT NULL CHECK (tipo IN ('add', 'remove', 'adjust', 'sale', 'waste', 'delivery')),
-    quantita NUMERIC NOT NULL, quantita_precedente NUMERIC, quantita_nuova NUMERIC,
-    note TEXT, created_by UUID REFERENCES auth.users(id), created_at TIMESTAMPTZ DEFAULT now()
+    quantity_change NUMERIC NOT NULL,
+    reason TEXT NOT NULL,
+    reference_id TEXT,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_logs_org ON inventory_logs(organization_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_logs_ingredient ON inventory_logs(ingredient_id);

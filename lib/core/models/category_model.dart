@@ -1,6 +1,6 @@
-
 class CategoryModel {
   final String id;
+  final String? organizationId;
   final String nome;
   final String? descrizione;
   final String? icona;
@@ -16,6 +16,7 @@ class CategoryModel {
 
   CategoryModel({
     required this.id,
+    this.organizationId,
     required this.nome,
     this.descrizione,
     this.icona,
@@ -33,6 +34,7 @@ class CategoryModel {
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
     return CategoryModel(
       id: json['id'] as String,
+      organizationId: json['organization_id'] as String?,
       nome: json['nome'] as String,
       descrizione: json['descrizione'] as String?,
       icona: json['icona'] as String?,
@@ -40,7 +42,8 @@ class CategoryModel {
       colore: json['colore'] as String?,
       ordine: json['ordine'] as int? ?? 0,
       attiva: json['attiva'] as bool? ?? true,
-      disattivazioneProgrammata: json['disattivazione_programmata'] as bool? ?? false,
+      disattivazioneProgrammata:
+          json['disattivazione_programmata'] as bool? ?? false,
       giorniDisattivazione: (json['giorni_disattivazione'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList(),
@@ -53,6 +56,7 @@ class CategoryModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'organization_id': organizationId,
       'nome': nome,
       'descrizione': descrizione,
       'icona': icona,
@@ -70,6 +74,7 @@ class CategoryModel {
 
   CategoryModel copyWith({
     String? id,
+    String? organizationId,
     String? nome,
     String? descrizione,
     String? icona,
@@ -85,6 +90,7 @@ class CategoryModel {
   }) {
     return CategoryModel(
       id: id ?? this.id,
+      organizationId: organizationId ?? this.organizationId,
       nome: nome ?? this.nome,
       descrizione: descrizione ?? this.descrizione,
       icona: icona ?? this.icona,
@@ -92,7 +98,8 @@ class CategoryModel {
       colore: colore ?? this.colore,
       ordine: ordine ?? this.ordine,
       attiva: attiva ?? this.attiva,
-      disattivazioneProgrammata: disattivazioneProgrammata ?? this.disattivazioneProgrammata,
+      disattivazioneProgrammata:
+          disattivazioneProgrammata ?? this.disattivazioneProgrammata,
       giorniDisattivazione: giorniDisattivazione ?? this.giorniDisattivazione,
       permittiDivisioni: permittiDivisioni ?? this.permittiDivisioni,
       createdAt: createdAt ?? this.createdAt,

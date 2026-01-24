@@ -4,9 +4,10 @@ class AppConstants {
   static const String appName = 'Rotante';
   static const String appVersion = '1.0.0';
 
-  // ========== Pizzeria Info ==========
-  static const String pizzeriaName = 'Pizzeria Rotante';
-  static const String pizzeriaLogo = 'assets/icons/LOGO.jpg';
+  // ========== Organization ==========
+  // NOTE: Pizzeria name and branding are now loaded dynamically from
+  // the organization's settings via organization_provider.dart
+  // DO NOT add hardcoded pizzeria info here for multi-tenant support
 
   // ========== Database Tables ==========
   static const String tablePizzerie = 'pizzerie';

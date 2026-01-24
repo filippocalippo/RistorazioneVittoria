@@ -9,6 +9,7 @@ part 'menu_item_included_ingredient_model.g.dart';
 @freezed
 class MenuItemIncludedIngredientModel with _$MenuItemIncludedIngredientModel {
   const factory MenuItemIncludedIngredientModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     @JsonKey(name: 'menu_item_id') required String menuItemId,
     @JsonKey(name: 'ingredient_id') required String ingredientId,

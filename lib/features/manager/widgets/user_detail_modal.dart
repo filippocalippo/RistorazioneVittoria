@@ -1315,7 +1315,7 @@ class _UserDetailModalState extends ConsumerState<UserDetailModal> {
                         }
                       },
                 activeTrackColor: AppColors.success,
-                activeColor: Colors.white,
+                activeThumbColor: Colors.white,
               ),
               const SizedBox(width: AppSpacing.sm),
               Text(
@@ -1516,7 +1516,8 @@ class _UserDetailModalState extends ConsumerState<UserDetailModal> {
                         try {
                           await widget.onRoleChanged!(user.id, role);
                           if (!mounted) return;
-                          
+
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -1525,6 +1526,7 @@ class _UserDetailModalState extends ConsumerState<UserDetailModal> {
                               backgroundColor: AppColors.success,
                             ),
                           );
+                          if (!context.mounted) return;
                           Navigator.of(context).pop();
                         } catch (e) {
                           if (mounted) {

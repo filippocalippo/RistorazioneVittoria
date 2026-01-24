@@ -12,6 +12,7 @@ import '../../../core/utils/logger.dart';
 import '../../../core/utils/constants.dart';
 import '../../../providers/menu_provider.dart';
 import '../../../providers/categories_provider.dart';
+import '../../../providers/organization_provider.dart';
 
 /// Form screen for creating or editing a promotional banner
 class BannerFormScreen extends ConsumerStatefulWidget {
@@ -223,12 +224,17 @@ class _BannerFormScreenState extends ConsumerState<BannerFormScreen> {
             : _sponsorNomeController.text.trim(),
       };
 
+      final orgId = await ref.read(currentOrganizationProvider.future);
+
       if (_isEditing) {
         await SupabaseConfig.client
             .from('promotional_banners')
             .update(data)
             .eq('id', widget.bannerId!);
       } else {
+        if (orgId != null) {
+          data['organization_id'] = orgId;
+        }
         await SupabaseConfig.client.from('promotional_banners').insert(data);
       }
 

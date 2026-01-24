@@ -1,3 +1,4 @@
+import 'organization_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/size_variant_model.dart';
@@ -14,13 +15,24 @@ class Sizes extends _$Sizes {
 
   Future<List<SizeVariantModel>> _fetchSizes() async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      final response = await supabase
-          .from('sizes_master')
-          .select()
-          .eq('attivo', true)
-          .order('ordine', ascending: true);
+      dynamic response;
+      if (orgId != null) {
+        response = await supabase
+            .from('sizes_master')
+            .select()
+            .eq('attivo', true)
+            .or('organization_id.eq.$orgId,organization_id.is.null')
+            .order('ordine', ascending: true);
+      } else {
+        response = await supabase
+            .from('sizes_master')
+            .select()
+            .eq('attivo', true)
+            .order('ordine', ascending: true);
+      }
 
       return (response as List)
           .map((json) => SizeVariantModel.fromJson(json))

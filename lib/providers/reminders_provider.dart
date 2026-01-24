@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/order_reminder_model.dart';
 import '../core/services/database_service.dart';
+import 'organization_provider.dart';
 
 part 'reminders_provider.g.dart';
 
@@ -12,7 +13,8 @@ class ActiveReminders extends _$ActiveReminders {
   @override
   Future<List<OrderReminderModel>> build() async {
     final db = DatabaseService();
-    return await db.getActiveReminders();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    return await db.getActiveReminders(organizationId: orgId);
   }
 
   /// Refresh the reminders list
@@ -30,12 +32,14 @@ class ActiveReminders extends _$ActiveReminders {
     DateTime? scadenza,
   }) async {
     final db = DatabaseService();
+    final orgId = await ref.read(currentOrganizationProvider.future);
     final reminder = await db.createReminder(
       ordineId: ordineId,
       titolo: titolo,
       descrizione: descrizione,
       priorita: priorita,
       scadenza: scadenza,
+      organizationId: orgId,
     );
     await refresh();
     return reminder;
@@ -44,14 +48,16 @@ class ActiveReminders extends _$ActiveReminders {
   /// Mark a reminder as completed
   Future<void> complete(String reminderId) async {
     final db = DatabaseService();
-    await db.completeReminder(reminderId);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await db.completeReminder(reminderId, organizationId: orgId);
     await refresh();
   }
 
   /// Delete a reminder permanently
   Future<void> delete(String reminderId) async {
     final db = DatabaseService();
-    await db.deleteReminder(reminderId);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await db.deleteReminder(reminderId, organizationId: orgId);
     await refresh();
   }
 
@@ -65,6 +71,7 @@ class ActiveReminders extends _$ActiveReminders {
     bool? clearScadenza,
   }) async {
     final db = DatabaseService();
+    final orgId = await ref.read(currentOrganizationProvider.future);
     await db.updateReminder(
       reminderId: reminderId,
       titolo: titolo,
@@ -72,6 +79,7 @@ class ActiveReminders extends _$ActiveReminders {
       priorita: priorita,
       scadenza: scadenza,
       clearScadenza: clearScadenza,
+      organizationId: orgId,
     );
     await refresh();
   }
@@ -107,7 +115,8 @@ Future<List<OrderReminderModel>> remindersByOrder(
   String orderId,
 ) async {
   final db = DatabaseService();
-  return await db.getRemindersByOrder(orderId);
+  final orgId = await ref.watch(currentOrganizationProvider.future);
+  return await db.getRemindersByOrder(orderId, organizationId: orgId);
 }
 
 /// Count of active reminders (for badges/indicators)

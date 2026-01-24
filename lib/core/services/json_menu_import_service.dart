@@ -4,6 +4,10 @@ import 'bulk_menu_import_service.dart';
 
 class JsonMenuImportService {
   final _supabase = Supabase.instance.client;
+  final String? _organizationId;
+
+  JsonMenuImportService({String? organizationId})
+      : _organizationId = organizationId;
 
   Future<ImportResult> importFromJson(String jsonString) async {
     final List<String> errors = [];
@@ -27,6 +31,7 @@ class JsonMenuImportService {
 
           if (!existingCategories.containsKey(categoryKey)) {
             await _supabase.from('categorie_menu').insert({
+              if (_organizationId != null) 'organization_id': _organizationId,
               'nome': name,
               'ordine': order,
               'attiva': true,
@@ -49,6 +54,7 @@ class JsonMenuImportService {
 
           if (!existingIngredients.containsKey(ingredientKey)) {
             await _supabase.from('ingredients').insert({
+              if (_organizationId != null) 'organization_id': _organizationId,
               'nome': name,
               'prezzo': ing['price'] as num? ?? 0.0,
               'categoria': ing['category'] as String?, // Optional category tag
@@ -72,6 +78,7 @@ class JsonMenuImportService {
           if (!existingSizes.containsKey(sizeKey)) {
             final slug = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '-');
             await _supabase.from('sizes_master').insert({
+              if (_organizationId != null) 'organization_id': _organizationId,
               'nome': name,
               'slug': slug,
               'price_multiplier': size['price_multiplier'] as num? ?? 1.0,
@@ -113,6 +120,7 @@ class JsonMenuImportService {
 
             // Create Menu Item
             final menuItemResponse = await _supabase.from('menu_items').insert({
+              if (_organizationId != null) 'organization_id': _organizationId,
               'nome': name,
               'categoria_id': categoryId,
               'prezzo': price,
@@ -137,6 +145,7 @@ class JsonMenuImportService {
                 final ingId = findIngredientId(ingName);
                 if (ingId != null) {
                   await _supabase.from('menu_item_included_ingredients').insert({
+                    if (_organizationId != null) 'organization_id': _organizationId,
                     'menu_item_id': menuItemId,
                     'ingredient_id': ingId,
                     'ordine': i,
@@ -249,7 +258,13 @@ class JsonMenuImportService {
                  for(var e in extrasToInsert) {
                    uniqueExtras[e['ingredient_id']] = e;
                  }
-                 await _supabase.from('menu_item_extra_ingredients').insert(uniqueExtras.values.toList());
+                 final extrasPayload = uniqueExtras.values.map((e) {
+                   return {
+                     if (_organizationId != null) 'organization_id': _organizationId,
+                     ...e,
+                   };
+                 }).toList();
+                 await _supabase.from('menu_item_extra_ingredients').insert(extrasPayload);
               }
             }
 
@@ -271,6 +286,7 @@ class JsonMenuImportService {
                 final sizeId = findSizeId(sizeName);
                 if (sizeId != null) {
                   await _supabase.from('menu_item_sizes').insert({
+                    if (_organizationId != null) 'organization_id': _organizationId,
                     'menu_item_id': menuItemId,
                     'size_id': sizeId,
                     'ordine': i,
@@ -303,7 +319,11 @@ class JsonMenuImportService {
   }
 
   Future<Map<String, String>> _fetchExistingMap(String table, String labelCol, String idCol) async {
-    final response = await _supabase.from(table).select('$labelCol, $idCol');
+    var query = _supabase.from(table).select('$labelCol, $idCol');
+    if (_organizationId != null) {
+      query = query.eq('organization_id', _organizationId);
+    }
+    final response = await query;
     final map = <String, String>{};
     for (var item in response as List) {
       if (item[labelCol] != null) {
