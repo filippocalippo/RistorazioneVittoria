@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Order Details - PizzaManager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#9bbeac",
+                        "primary-dark": "#7da998",
+                        "background": "#f8fafc",
+                        "surface": "#f1f5f9",
+                        "card": "#ffffff",
+                        "text-main": "#0f172a", // Slate 900
+                        "text-secondary": "#64748b", // Slate 500
+                    },
+                    fontFamily: {
+                        "display": ["Spline Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+</head>
+
+<body class="bg-background text-text-main font-display min-h-screen flex overflow-hidden">
+    <aside
+        class="w-20 lg:w-64 flex-shrink-0 flex flex-col justify-between bg-white border-r border-slate-200 transition-all duration-300">
+        <div class="flex flex-col gap-6 p-4">
+            <div class="flex items-center gap-3 px-2">
+                <div class="bg-center bg-no-repeat bg-cover rounded-full h-10 w-10 shrink-0"
+                    data-alt="Pizza logo abstract icon"
+                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAR2tKiXk5oRKQsZkUxc7GZJ65S5FClfQYDysP9UBUUP-GN3VTiUfTSqe97sjFuPjyVLHJvfORCKXBSdgSHZLnjm8NF_RLV2MpPJmk2Jpn64O0j4ODNkbpCeRi0cuKPzIghXv4sMpJSxqf_BCpXbdF68rUp1ah64PjCgFjy1HrXkBOanQ0yFCrDbLW9Ix43aasTdsWzrWcc7C49hORN1-nkIyDFZmDf8liQofYCgtlHWDJGqMWzvefSQSaB3tEpiVv3K0iX8I9wE_g");'>
+                </div>
+                <h1 class="text-text-main text-lg font-bold leading-normal hidden lg:block">PizzaManager</h1>
+            </div>
+            <nav class="flex flex-col gap-2">
+                <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-slate-50 transition-colors group"
+                    href="#">
+                    <span
+                        class="material-symbols-outlined text-text-secondary group-hover:text-primary">dashboard</span>
+                    <p class="text-text-secondary text-sm font-medium hidden lg:block group-hover:text-text-main">
+                        Dashboard</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-3 rounded-full bg-primary/20 text-primary" href="#">
+                    <span class="material-symbols-outlined text-primary"
+                        style="font-variation-settings: 'FILL' 1;">shopping_bag</span>
+                    <p class="text-primary-dark text-sm font-bold hidden lg:block">Orders</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-slate-50 transition-colors group"
+                    href="#">
+                    <span class="material-symbols-outlined text-text-secondary group-hover:text-primary">group</span>
+                    <p class="text-text-secondary text-sm font-medium hidden lg:block group-hover:text-text-main">
+                        Customers</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-slate-50 transition-colors group"
+                    href="#">
+                    <span
+                        class="material-symbols-outlined text-text-secondary group-hover:text-primary">restaurant_menu</span>
+                    <p class="text-text-secondary text-sm font-medium hidden lg:block group-hover:text-text-main">Menu
+                    </p>
+                </a>
+            </nav>
+        </div>
+        <div class="p-4">
+            <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-slate-50 transition-colors group"
+                href="#">
+                <span class="material-symbols-outlined text-text-secondary group-hover:text-primary">settings</span>
+                <p class="text-text-secondary text-sm font-medium hidden lg:block group-hover:text-text-main">Settings
+                </p>
+            </a>
+        </div>
+    </aside>
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <header
+            class="h-16 flex items-center justify-between px-6 lg:px-10 border-b border-slate-200 shrink-0 bg-white/80 backdrop-blur-md z-10">
+            <div class="flex items-center gap-2">
+                <a class="text-text-secondary text-sm font-medium hover:text-primary transition-colors"
+                    href="#">Orders</a>
+                <span class="text-slate-300 text-sm">/</span>
+                <span class="text-text-main text-sm font-medium">Order #4921</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button
+                    class="hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors">
+                    <span class="material-symbols-outlined text-[20px]">notifications</span>
+                </button>
+                <div class="bg-center bg-no-repeat bg-cover rounded-full h-10 w-10 border-2 border-primary/20"
+                    data-alt="User profile picture"
+                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC3E3dLxMKe_gdWhg-TY0-VlfTdGvddIHf8_Gxt7poUPBeWs42th7xv1Xxl2KQfNEvTLxCy9YIjem9pTqX9TsJknUphV9cshel3Njf6zbwgqgYrCZIpHjnQ6_KORStGd71UAwMPLAiAuagdIVSLwa_2ZlaugtoCG7zYkI4Tg5uCmDH-93_DMkEL6EfYpHz9z7c2lK91bPpEXawU-r2BDO7a0P-mPaajnbDXeciPzXf2E1IzP3ah_t1U6AyJPKPZkt5yaWzm0PHh7ew");'>
+                </div>
+            </div>
+        </header>
+        <div class="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-hide">
+            <div class="max-w-[1400px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-8">
+                <div class="xl:col-span-8 flex flex-col gap-6">
+                    <div class="flex flex-wrap justify-between items-end gap-4">
+                        <div class="flex flex-col gap-1">
+                            <h1 class="text-text-main text-4xl font-bold tracking-tight">Order #4921</h1>
+                            <div class="flex items-center gap-2 text-text-secondary text-sm">
+                                <span class="material-symbols-outlined text-[18px]">schedule</span>
+                                <span>Placed on Oct 24, 12:30 PM</span>
+                                <span class="w-1 h-1 bg-slate-300 rounded-full mx-1"></span>
+                                <span>via Mobile App</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button
+                                class="flex items-center gap-2 px-5 h-12 rounded-full bg-white hover:bg-slate-50 text-text-main font-bold text-sm transition-all border border-slate-200 shadow-sm">
+                                <span class="material-symbols-outlined text-[20px]">print</span>
+                                <span>Receipt</span>
+                            </button>
+                            <button
+                                class="flex items-center gap-2 px-6 h-12 rounded-full bg-primary hover:brightness-95 text-white font-bold text-sm transition-all shadow-md shadow-primary/20">
+                                <span class="material-symbols-outlined text-[20px]">check</span>
+                                <span>Save Changes</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-card rounded-[2rem] p-1 overflow-hidden border border-slate-200 shadow-sm">
+                        <div class="p-6 pb-2 flex justify-between items-center">
+                            <h2 class="text-xl font-bold text-text-main">Items</h2>
+                            <button
+                                class="flex items-center gap-2 text-primary hover:text-primary-dark text-sm font-medium transition-colors">
+                                <span class="material-symbols-outlined text-[20px]">add_circle</span>
+                                Add Item
+                            </button>
+                        </div>
+                        <div class="flex flex-col gap-1 p-2">
+                            <div
+                                class="flex flex-col sm:flex-row gap-4 bg-surface p-4 rounded-[1.5rem] items-start sm:items-center justify-between group hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200">
+                                <div class="flex items-center gap-4 flex-1">
+                                    <div class="bg-center bg-no-repeat bg-cover rounded-xl w-16 h-16 shrink-0"
+                                        data-alt="Pepperoni pizza close up"
+                                        style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDOOTlQPcKyUjb8dakdErJhFKn2xFnROyBqy59sdSvaU2XqZguiywaeUU3SpUa_p9E6fnymQRXAepnPWjC885RGKzRIuJiUdFDWdUnbUyCP0K7KKTWgZAWZRHushdAaECDtygBB7xv2NJEl9_kqA7KvFUbV8yAQTHL9w4-UDMguwhxp8sQWY_qEkfp-bDIu7SxZh1pTs9L5TU1r9Hkt-LLIhisKYKA3UkmH3xGlJAYwxyO3E2PGmTgJeRlVZjjn1vLDoLQ05dbTMfM");'>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <p class="text-text-main text-lg font-bold">Large Pepperoni Feast</p>
+                                        <div class="flex flex-wrap gap-2 mt-1">
+                                            <span
+                                                class="px-2 py-0.5 rounded-md bg-red-100 text-red-600 text-xs font-medium border border-red-200">No
+                                                Onions</span>
+                                            <span
+                                                class="px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-700 text-xs font-medium border border-yellow-200">Extra
+                                                Cheese</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                                    <p class="text-text-main font-medium">$18.00</p>
+                                    <div
+                                        class="flex items-center bg-white rounded-full p-1 border border-slate-200 shadow-sm">
+                                        <button
+                                            class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">remove</span>
+                                        </button>
+                                        <span class="w-8 text-center text-text-main font-medium text-sm">1</span>
+                                        <button
+                                            class="w-8 h-8 flex items-center justify-center rounded-full bg-primary text-white hover:brightness-105 transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">add</span>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button
+                                            class="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-text-main hover:bg-slate-100 transition-colors">
+                                            <span class="material-symbols-outlined text-[20px]">edit</span>
+                                        </button>
+                                        <button
+                                            class="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                            <span class="material-symbols-outlined text-[20px]">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                class="flex flex-col sm:flex-row gap-4 bg-surface p-4 rounded-[1.5rem] items-start sm:items-center justify-between group hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200">
+                                <div class="flex items-center gap-4 flex-1">
+                                    <div class="bg-center bg-no-repeat bg-cover rounded-xl w-16 h-16 shrink-0"
+                                        data-alt="Garlic knots basket"
+                                        style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAuG_feAvGEJNIKtyUrAk6-dmYbNL7SLeso47MDucTv3CXE33vvmnWJXia09I3CGhnfigGXB6oLBUjtHoEBMx8Y3ocKnQ9PaAUc2jVpUa3lGUpq5UfmOh35haSDsmc6tW1D65iC1ExKo-D6HrLLvJR9hWu-zfXTYgMp9xReYk0u-e9iwfyq_6_JxpkVpVO3iiPqaGHNc2ROzMQ7x9ZgTANdsFPh1cd-eOOalYejBIzGYQlMHQPUnsHOD3LlLWk3xa2j-ldG5iJF86Q");'>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <p class="text-text-main text-lg font-bold">Garlic Knots (6pc)</p>
+                                        <div class="flex flex-wrap gap-2 mt-1">
+                                            <span
+                                                class="px-2 py-0.5 rounded-md bg-white text-text-secondary text-xs font-medium border border-slate-200">Marinara
+                                                Dip</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                                    <p class="text-text-main font-medium">$6.00</p>
+                                    <div
+                                        class="flex items-center bg-white rounded-full p-1 border border-slate-200 shadow-sm">
+                                        <button
+                                            class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">remove</span>
+                                        </button>
+                                        <span class="w-8 text-center text-text-main font-medium text-sm">2</span>
+                                        <button
+                                            class="w-8 h-8 flex items-center justify-center rounded-full bg-primary text-white hover:brightness-105 transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">add</span>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button
+                                            class="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-text-main hover:bg-slate-100 transition-colors">
+                                            <span class="material-symbols-outlined text-[20px]">edit</span>
+                                        </button>
+                                        <button
+                                            class="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                            <span class="material-symbols-outlined text-[20px]">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                class="flex flex-col sm:flex-row gap-4 bg-surface p-4 rounded-[1.5rem] items-start sm:items-center justify-between group hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200">
+                                <div class="flex items-center gap-4 flex-1">
+                                    <div class="bg-center bg-no-repeat bg-cover rounded-xl w-16 h-16 shrink-0 bg-white border border-slate-100 flex items-center justify-center text-slate-400"
+                                        data-alt="Generic drink icon placeholder">
+                                        <span class="material-symbols-outlined">local_drink</span>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <p class="text-text-main text-lg font-bold">Coke Zero (Can)</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                                    <p class="text-text-main font-medium">$2.50</p>
+                                    <div
+                                        class="flex items-center bg-white rounded-full p-1 border border-slate-200 shadow-sm">
+                                        <button
+                                            class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">remove</span>
+                                        </button>
+                                        <span class="w-8 text-center text-text-main font-medium text-sm">1</span>
+                                        <button
+                                            class="w-8 h-8 flex items-center justify-center rounded-full bg-primary text-white hover:brightness-105 transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">add</span>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button
+                                            class="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-text-main hover:bg-slate-100 transition-colors">
+                                            <span class="material-symbols-outlined text-[20px]">edit</span>
+                                        </button>
+                                        <button
+                                            class="w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                            <span class="material-symbols-outlined text-[20px]">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-6 py-4 border-t border-slate-200">
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Kitchen Note</label>
+                            <div class="relative">
+                                <span
+                                    class="absolute left-4 top-3 text-slate-400 material-symbols-outlined text-[20px]">edit_note</span>
+                                <input
+                                    class="w-full bg-surface text-text-main text-sm rounded-xl border border-slate-200 focus:border-primary focus:ring-0 pl-11 py-3 placeholder:text-slate-400 transition-colors"
+                                    placeholder="Add a note for the kitchen..." type="text"
+                                    value="Customer requested extra crispy crust on the pepperoni" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="xl:col-span-4 flex flex-col gap-6">
+                    <div class="bg-card rounded-[2rem] p-6 border border-slate-200 shadow-sm flex flex-col gap-4">
+                        <label class="text-sm font-medium text-text-secondary">Order Status</label>
+                        <div class="relative">
+                            <select
+                                class="w-full appearance-none bg-surface text-text-main rounded-xl border border-slate-200 px-4 py-4 pr-10 focus:border-primary focus:ring-0 text-base font-medium cursor-pointer transition-colors">
+                                <option>Order Received</option>
+                                <option selected="">Cooking</option>
+                                <option>Ready for Pickup</option>
+                                <option>Delivered</option>
+                            </select>
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+                                <span class="material-symbols-outlined">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <div
+                                class="flex-1 bg-primary/10 rounded-xl p-3 flex flex-col items-center justify-center text-primary border border-primary/20">
+                                <span class="material-symbols-outlined mb-1">local_pizza</span>
+                                <span class="text-xs font-bold uppercase">Preparing</span>
+                            </div>
+                            <div
+                                class="flex-1 bg-surface rounded-xl p-3 flex flex-col items-center justify-center text-slate-400 border border-slate-200 opacity-50">
+                                <span class="material-symbols-outlined mb-1">check_circle</span>
+                                <span class="text-xs font-bold uppercase">Ready</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-card rounded-[2rem] p-6 border border-slate-200 shadow-sm flex flex-col gap-4 relative overflow-hidden">
+                        <div class="flex justify-between items-start">
+                            <h3 class="text-text-main font-bold text-lg">Customer</h3>
+                            <button
+                                class="text-primary text-sm font-medium hover:text-primary-dark transition-colors">Edit</button>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="bg-center bg-no-repeat bg-cover rounded-full h-12 w-12 border border-slate-100 shadow-sm"
+                                data-alt="Customer avatar"
+                                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBE1ccMUCqFZw9ysvc2VSG1Djl-bAFNnqqZ8hXFRvuwzqegAllzeNTI5kMJcEl4msgpD5lyZwIT6xWiBtKmz-9RfW7MoBympoKWjuRWlFTWT7uf13_80F7DLHR357JUPNmI9GSu7HV86KZ4NVYMdDqnG3pnI-rQLQ-G_eI3sqtPaiE57h_TDcJXiB1SKkkR2lQMPOafhamouZ5v99CvnMv1ltAz7jPTmHlOWsYbJ3lTq84HIGdaU6otbjZ3UZw2QfwYbEKu3AgN8s0");'>
+                            </div>
+                            <div>
+                                <p class="text-text-main font-bold text-lg">Alex Dough</p>
+                                <p class="text-text-secondary text-sm">3 previous orders</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-3 mt-2">
+                            <div class="flex items-start gap-3">
+                                <span
+                                    class="material-symbols-outlined text-slate-400 text-[20px] mt-0.5">location_on</span>
+                                <div class="flex flex-col text-sm">
+                                    <p class="font-medium text-text-main">123 Pizza Lane, Apt 4B</p>
+                                    <p class="text-text-secondary text-xs mt-0.5">Note: Gate code is 1234</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-slate-400 text-[20px]">call</span>
+                                <p class="text-sm font-medium text-text-main">+1 (555) 012-3456</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-slate-400 text-[20px]">mail</span>
+                                <p class="text-sm font-medium text-text-main">alex.dough@example.com</p>
+                            </div>
+                        </div>
+                        <div class="h-24 w-full rounded-xl mt-2 overflow-hidden relative"
+                            data-location="New York map preview">
+                            <img alt="Map preview of delivery location" class="w-full h-full object-cover opacity-80"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSqrTwU6a5kMTkQW6qBoYiYF-lEs6ojb6qHH-ElU-GBSG4JHC8gNZIlJnOfpbFBFuU3Y8Oer7lmJI6vGlnrl4fTZVmHM3Ajrmto59-6hwN9YL1hvJfXk990900bXmKLsCZV6L8PXINno1zqzKSE5H60mMoO6xnHlJaQRy5DquMRlJAPkgqUfNhS_DwChdytYO_fF6hCuQdnFgekHJ2Akmgz17179LTXF2bn827K9fPwO9k0UM9-_QwAQW5TLVcxZTWSS7WMAtlDbg" />
+                            <div class="absolute inset-0 flex items-center justify-center bg-white/10">
+                                <button
+                                    class="bg-white/90 backdrop-blur text-text-main text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-primary hover:text-white transition-colors shadow-sm">
+                                    <span class="material-symbols-outlined text-[14px]">near_me</span> Open Map
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-card rounded-[2rem] p-6 border border-slate-200 shadow-sm flex flex-col gap-4">
+                        <h3 class="text-text-main font-bold text-lg">Payment Summary</h3>
+                        <div class="flex flex-col gap-2 border-b border-slate-200 pb-4">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-text-secondary">Subtotal</span>
+                                <span class="text-text-main font-medium">$26.50</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-text-secondary">Delivery Fee</span>
+                                <span class="text-text-main font-medium">$2.00</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-text-secondary">Tax (8%)</span>
+                                <span class="text-text-main font-medium">$2.28</span>
+                            </div>
+                            <div class="flex justify-between text-sm items-center pt-1">
+                                <span class="text-text-secondary">Discount</span>
+                                <span class="text-primary text-xs font-bold cursor-pointer hover:underline">+ Add
+                                    Code</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-text-secondary font-medium">Total</span>
+                            <span class="text-primary text-3xl font-bold tracking-tight">$30.78</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-2 bg-green-50 border border-green-200 p-3 rounded-xl">
+                            <span class="material-symbols-outlined text-green-600">verified</span>
+                            <div class="flex flex-col">
+                                <span class="text-green-700 text-sm font-bold">Payment Confirmed</span>
+                                <span class="text-green-600/80 text-xs">Visa ending in 4242</span>
+                            </div>
+                        </div>
+                        <button
+                            class="w-full py-3.5 mt-2 rounded-xl border border-red-200 text-red-500 text-sm font-bold hover:bg-red-50 transition-colors">
+                            Cancel Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="h-10"></div>
+        </div>
+    </main>
+
+</body>
+
+</html>

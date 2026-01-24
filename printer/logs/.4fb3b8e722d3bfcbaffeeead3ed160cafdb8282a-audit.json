@@ -1,0 +1,45 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\.4fb3b8e722d3bfcbaffeeead3ed160cafdb8282a-audit.json",
+    "files": [
+        {
+            "date": 1763757063528,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-11-21.log",
+            "hash": "f25ccdeccea95d820ec5242c97bd65f0c0f5c58229bbdf3852a8e81394949f33"
+        },
+        {
+            "date": 1763898747443,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-11-23.log",
+            "hash": "5d9fbf14944e2a6a855f580f9d21d2280c434c618dd1ad3d338b009dcd28a724"
+        },
+        {
+            "date": 1764018401865,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-11-24.log",
+            "hash": "b3ab6c6bff209b20871f2701b13da60f1fc825d1ba7720921733907758929b78"
+        },
+        {
+            "date": 1764172309794,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-11-26.log",
+            "hash": "8c0d70d4d844afb9c7440f5fa77511ae79109c3c1faceb02c36cfb62c1aa0560"
+        },
+        {
+            "date": 1764608033245,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-12-01.log",
+            "hash": "4a5800a5eac6dfa66d3dadcfe4692ea7d9cb9d58b0804e75acbb63ebe45ebb1c"
+        },
+        {
+            "date": 1764868154322,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-12-04.log",
+            "hash": "1141353af9cae18a6426f2c2477f5e7e894f0ff694f93817876df944ddb71ab2"
+        },
+        {
+            "date": 1764901070657,
+            "name": "C:\\Users\\aleri\\Desktop\\rotante\\printer\\logs\\rotante-printer-2025-12-05.log",
+            "hash": "404ef679ca40d2975e0cc30cc7a593e66600ae3b5edeb817f1c618f5ee29cb67"
+        }
+    ],
+    "hashType": "sha256"
+}

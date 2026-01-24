@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Ingredient Management - Pizzeria Admin</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;700;900&amp;family=Noto+Sans:wght@300;400;500;700&amp;display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ACC7BE",
+                        "background-light": "#f7f7f7",
+                        "background-dark": "#171b1a",
+                    },
+                    fontFamily: {
+                        "display": ["Work Sans", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: "Work Sans", "Noto Sans", sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 overflow-hidden relative">
+    <div aria-hidden="true"
+        class="relative flex h-screen w-full flex-row overflow-hidden blur-[2px] opacity-60 pointer-events-none select-none">
+        <div
+            class="hidden lg:flex flex-col w-72 h-full border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+            <div class="flex h-full flex-col justify-between p-4">
+                <div class="flex flex-col gap-4">
+                    <div class="flex gap-3 items-center px-2 py-4">
+                        <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 bg-primary"
+                            data-alt="Pizza logo abstract shape"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDUqUqK41qnNskKOrpHM6ESZ4J2dcYBZk2w8AiLdxXzIeLDnyUm4vao3OjL8zGsUUIZg8Pt976SL-nEp4Uss4T-ytB4q11TMz87yVj_sabldB9d4hEqowpfxvG-VrNNeDFYc8EicECgyIXEEqwwc8gPBjEL9Z28oYD6BJbMT2FUepRN8nIZA9Q48drWze00_YgJ9ah9YXCKbvd3jUMRs7qTxmpfFsLJDMJGWsd9mNb-evuihsx_rpj6NVnd0397-3oehcQG2Qn3Y4M");'>
+                        </div>
+                        <div class="flex flex-col">
+                            <h1 class="text-gray-900 dark:text-white text-base font-bold leading-normal">Pizzeria Admin
+                            </h1>
+                            <p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal">Manage your
+                                store</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            href="#">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">dashboard</span>
+                            <p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Dashboard</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            href="#">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">menu_book</span>
+                            <p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Menu</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 dark:bg-primary/10"
+                            href="#">
+                            <span class="material-symbols-outlined text-gray-900 dark:text-white">inventory_2</span>
+                            <p class="text-gray-900 dark:text-white text-sm font-bold leading-normal">Ingredients</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            href="#">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">shopping_bag</span>
+                            <p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Orders</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            href="#">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">group</span>
+                            <p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Staff</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            href="#">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">settings</span>
+                            <p class="text-gray-900 dark:text-white text-sm font-medium leading-normal">Settings</p>
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 px-3 py-2">
+                    <div
+                        class="rounded-full bg-gray-200 dark:bg-gray-700 w-8 h-8 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">
+                        JD</div>
+                    <div class="flex flex-col">
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">Jane Doe</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Kitchen Manager</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="flex flex-col flex-1 h-full overflow-y-auto bg-background-light dark:bg-background-dark">
+            <div class="w-full max-w-[1200px] mx-auto p-6 md:p-8 lg:p-10 flex flex-col gap-8">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div class="flex flex-col gap-2">
+                        <h1
+                            class="text-gray-900 dark:text-white text-3xl md:text-4xl font-black leading-tight tracking-tight">
+                            Ingredient Inventory</h1>
+                        <p class="text-gray-500 dark:text-gray-400 text-base font-normal">Manage stock levels, pricing,
+                            and availability for menu items.</p>
+                    </div>
+                    <button
+                        class="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary hover:bg-primary/90 transition-colors text-gray-900 text-sm font-bold shadow-sm whitespace-nowrap">
+                        <span class="material-symbols-outlined text-lg">add</span>
+                        <span>Add Ingredient</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div
+                        class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <p class="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Ingredients</p>
+                            <span class="material-symbols-outlined text-primary">inventory_2</span>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <p class="text-gray-900 dark:text-white text-2xl font-bold leading-none">48</p>
+                            <span
+                                class="text-green-600 dark:text-green-400 text-xs font-medium bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">+2%</span>
+                        </div>
+                    </div>
+                    <div
+                        class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <p class="text-gray-500 dark:text-gray-400 text-sm font-medium">Low Stock</p>
+                            <span class="material-symbols-outlined text-yellow-500">warning</span>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <p class="text-gray-900 dark:text-white text-2xl font-bold leading-none">3</p>
+                        </div>
+                    </div>
+                    <div
+                        class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <p class="text-gray-500 dark:text-gray-400 text-sm font-medium">Out of Stock</p>
+                            <span class="material-symbols-outlined text-red-500">block</span>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <p class="text-gray-900 dark:text-white text-2xl font-bold leading-none">1</p>
+                        </div>
+                    </div>
+                    <div
+                        class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <p class="text-gray-500 dark:text-gray-400 text-sm font-medium">Top Extra</p>
+                            <span class="material-symbols-outlined text-primary">trending_up</span>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <p class="text-gray-900 dark:text-white text-2xl font-bold leading-none">Pepperoni</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                    <div class="relative w-full lg:max-w-md">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <span class="material-symbols-outlined text-gray-400">search</span>
+                        </div>
+                        <input
+                            class="block w-full p-2.5 pl-10 text-sm text-gray-900 bg-white border border-gray-200 rounded-lg"
+                            placeholder="Search ingredients..." type="text" />
+                    </div>
+                    <div class="flex gap-2 w-full lg:w-auto">
+                        <button class="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-sm font-medium">All
+                            Items</button>
+                        <button
+                            class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-sm font-medium">Vegetables</button>
+                    </div>
+                </div>
+                <div class="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="p-4 w-4"><input class="w-4 h-4 text-primary rounded" type="checkbox" />
+                                    </th>
+                                    <th class="px-6 py-3 font-semibold">Ingredient Name</th>
+                                    <th class="px-6 py-3 font-semibold">Category</th>
+                                    <th class="px-6 py-3 font-semibold">Cost / Unit</th>
+                                    <th class="px-6 py-3 font-semibold">Extra Price</th>
+                                    <th class="px-6 py-3 font-semibold">Status</th>
+                                    <th class="px-6 py-3 font-semibold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr class="bg-white">
+                                    <td class="w-4 p-4"><input class="w-4 h-4 text-primary rounded" type="checkbox" />
+                                    </td>
+                                    <th class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                                        <div class="flex items-center gap-3">
+                                            <div class="h-9 w-9 rounded bg-gray-100 bg-center bg-cover"
+                                                style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCrPJxrCIoqTbVSu3rzj1-v5gcc9nwzh6wh4p0WyJfM55L1EXHx1ZL8tx9AK-WivuLbKbH_uHz0W2BoBkDXW6rITboJHyra2H1HemxWlY0cgJJtt8VwxN5rTlwQJXEPQz90Xl_6TlpGF8-_geqoX3ACD8OAMhBSNJrmnGbdwSZyFsLgbQ0HUd8x2BzCzPNsIp44mmhXnzKRAvFtDvayXpGKTEO1dMSv-S4sjs8pP_Kdk0_3Z5w4XNO8iOirXnWG2PJceiMPTCvhSqo');">
+                                            </div>
+                                            <span>Pepperoni</span>
+                                        </div>
+                                    </th>
+                                    <td class="px-6 py-4">Meat</td>
+                                    <td class="px-6 py-4">$0.05 / slice</td>
+                                    <td class="px-6 py-4">+$1.50</td>
+                                    <td class="px-6 py-4"><span class="text-green-600">In Stock</span></td>
+                                    <td class="px-6 py-4"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div aria-labelledby="modal-title" aria-modal="true"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog">
+        <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"></div>
+        <div
+            class="relative flex flex-col md:flex-row w-full max-w-6xl h-[85vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-gray-900/5">
+            <div
+                class="w-full md:w-80 lg:w-96 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-3">
+                    <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white" id="modal-title">Add Ingredient</h3>
+                        <p class="text-xs text-gray-500">Select from standardized database</p>
+                    </div>
+                    <div class="relative">
+                        <span
+                            class="material-symbols-outlined absolute left-2.5 top-2.5 text-gray-400 text-[18px]">search</span>
+                        <input
+                            class="w-full pl-9 pr-3 py-2 text-sm border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-primary focus:border-primary placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-white"
+                            placeholder="Search database..." type="text" />
+                    </div>
+                    <div class="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                        <button
+                            class="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 whitespace-nowrap">All
+                            Items</button>
+                        <button
+                            class="px-2.5 py-1 text-xs font-medium rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 whitespace-nowrap hover:bg-gray-50 dark:hover:bg-gray-600">Meats</button>
+                        <button
+                            class="px-2.5 py-1 text-xs font-medium rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 whitespace-nowrap hover:bg-gray-50 dark:hover:bg-gray-600">Cheeses</button>
+                        <button
+                            class="px-2.5 py-1 text-xs font-medium rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 whitespace-nowrap hover:bg-gray-50 dark:hover:bg-gray-600">Veg</button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                    <button
+                        class="w-full flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-700 shadow-sm ring-1 ring-primary border-l-[3px] border-primary text-left transition-all group">
+                        <div class="h-10 w-10 rounded bg-gray-100 dark:bg-gray-600 bg-center bg-cover shrink-0"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCrPJxrCIoqTbVSu3rzj1-v5gcc9nwzh6wh4p0WyJfM55L1EXHx1ZL8tx9AK-WivuLbKbH_uHz0W2BoBkDXW6rITboJHyra2H1HemxWlY0cgJJtt8VwxN5rTlwQJXEPQz90Xl_6TlpGF8-_geqoX3ACD8OAMhBSNJrmnGbdwSZyFsLgbQ0HUd8x2BzCzPNsIp44mmhXnzKRAvFtDvayXpGKTEO1dMSv-S4sjs8pP_Kdk0_3Z5w4XNO8iOirXnWG2PJceiMPTCvhSqo');">
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span class="font-bold text-sm text-gray-900 dark:text-white truncate">Pepperoni</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 truncate">Cured Meat • Standard</span>
+                        </div>
+                        <span class="material-symbols-outlined ml-auto text-primary text-lg">check_circle</span>
+                    </button>
+                    <button
+                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 transition-colors text-left group">
+                        <div class="h-10 w-10 rounded bg-gray-100 dark:bg-gray-600 bg-center bg-cover shrink-0"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDoZNUlZeXDJMqfeeVXjJoAb9W4a65Kp6K35Jze9Ppty72r-vRMMYXf508MVpBWFsrXJU-ZN22TKxRwq8oeDETS_TuEdsDUafl5nTUwvcs-n1tzGMTpFe7ytMapeG264zUApSGmYf56TjPqUqIUqBlPVwAUeH5PfvT5TmtydwGWT-C98lX0sD0y_NUkk1SU4uUYK5Y6qu3LE5NDKoWAZcmnuGb9dJEiRj9gH4eAGExjaXL5NSn3C4lDdu4iPz1jWjHsLPyzvhUVjGQ');">
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span
+                                class="font-medium text-sm text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white truncate">Mozzarella
+                                Block</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 truncate">Cheese • Dairy</span>
+                        </div>
+                        <span
+                            class="material-symbols-outlined ml-auto text-gray-300 text-lg opacity-0 group-hover:opacity-100">add_circle</span>
+                    </button>
+                    <button
+                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 transition-colors text-left group">
+                        <div class="h-10 w-10 rounded bg-gray-100 dark:bg-gray-600 bg-center bg-cover shrink-0"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDtIuqKpVBDnga1rtuFKZ6NS3poj7TAng7hH361v7KW7_AI5uuCN_PrnGl7jqjpB3ICdJvAS4Dzv4WHhvIxtggYiPKDWxsw-6AEeZg8O7ZhZBFgBZjAck6uzgJ1NNDbnM3j4hvjUtPxon_wNF9p_MtVIm8gChEEbf-kLyIfxyA37I6Bq-WEwW_Rb0NeXNzeQJMZJ2fMLLi8NhTv9uSk7eIIXNdpBytZQSzUv6hBMtyqDyxjDZK6uYUoo7xtLl_kQ7lWgxQMpKq4yuA');">
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span
+                                class="font-medium text-sm text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white truncate">Fresh
+                                Basil</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 truncate">Herb • Fresh Produce</span>
+                        </div>
+                        <span
+                            class="material-symbols-outlined ml-auto text-gray-300 text-lg opacity-0 group-hover:opacity-100">add_circle</span>
+                    </button>
+                    <button
+                        class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 transition-colors text-left group">
+                        <div class="h-10 w-10 rounded bg-gray-100 dark:bg-gray-600 bg-center bg-cover shrink-0"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCfLgkmwnLuHdfwXZMbzdu8cU3_V_wFx1jNwO7AwINJfPddyRCBC_9XS8SbqfS8b0NHmjxo2p55cf5RkznOE-yO6RMloBft6dled8LMbjTA12vbhrBM2TLUaR0gz2iv6qiyX-y3b3bbvhCPUrkrA_XBVoCcT1hNd5M_Pa4fLCoHuAcJDlVd3ODE2TW2xSMC3ef9knCqGNuqnjISDea2GOEePzuf-Q7AQQUqJ-mT0FB0OXD7rkvYoloGxls3m9YqNYPk6FG1FzLhCDs');">
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                            <span
+                                class="font-medium text-sm text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white truncate">Tomato
+                                Sauce Base</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 truncate">Sauce • Pantry</span>
+                        </div>
+                        <span
+                            class="material-symbols-outlined ml-auto text-gray-300 text-lg opacity-0 group-hover:opacity-100">add_circle</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-gray-800">
+                <div
+                    class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 shrink-0 bg-white dark:bg-gray-800 z-10">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Configure Pepperoni</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Set specific properties and stock rules.</p>
+                    </div>
+                    <button
+                        class="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6 lg:p-8">
+                    <div class="flex flex-col gap-8 max-w-3xl">
+                        <div>
+                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Stock &amp;
+                                Pricing</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-1.5">
+                                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Display
+                                        Name</label>
+                                    <input
+                                        class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm focus:ring-primary focus:border-primary py-2.5"
+                                        type="text" value="Pepperoni" />
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+                                    <select
+                                        class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm focus:ring-primary focus:border-primary py-2.5">
+                                        <option selected="">Meat</option>
+                                        <option>Vegetable</option>
+                                        <option>Dairy</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Cost per
+                                        Unit</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-2.5 text-gray-500 text-sm font-medium">$</span>
+                                        <input
+                                            class="block w-full pl-6 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:ring-primary focus:border-primary py-2.5"
+                                            type="number" value="0.05" />
+                                        <span class="absolute right-3 top-2.5 text-gray-400 text-xs font-mono">/
+                                            slice</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr class="border-gray-100 dark:border-gray-700" />
+                        <div>
+                            <h4 class="text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">inventory</span>
+                                Inventory Rules
+                            </h4>
+                            <div class="space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-1.5">
+                                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Stock
+                                            Unit</label>
+                                        <select
+                                            class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm focus:ring-primary focus:border-primary py-2.5">
+                                            <option value="slice">Slices</option>
+                                            <option value="kg">Kilograms (kg)</option>
+                                            <option value="g">Grams (g)</option>
+                                            <option value="oz">Ounces (oz)</option>
+                                            <option value="unit">Units / Pieces</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label
+                                            class="text-sm font-medium text-gray-700 dark:text-gray-300 flex justify-between">
+                                            <span>Current Stock</span>
+                                            <span class="text-xs text-gray-500 font-normal">Last updated: Today, 9:00
+                                                AM</span>
+                                        </label>
+                                        <div class="flex">
+                                            <button
+                                                class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-l-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-600 dark:text-gray-300"
+                                                type="button">
+                                                <span class="material-symbols-outlined text-sm font-bold">remove</span>
+                                            </button>
+                                            <input
+                                                class="block w-full text-center border-y border-gray-300 dark:border-gray-600 text-sm focus:ring-primary focus:border-primary font-bold text-gray-900 dark:text-white"
+                                                type="number" value="450" />
+                                            <button
+                                                class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-r-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-600 dark:text-gray-300"
+                                                type="button">
+                                                <span class="material-symbols-outlined text-sm font-bold">add</span>
+                                            </button>
+                                        </div>
+                                        <div class="flex gap-2 mt-2">
+                                            <button
+                                                class="text-xs bg-primary/10 text-primary-800 dark:text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors font-medium"
+                                                type="button">Reset</button>
+                                            <button
+                                                class="text-xs bg-primary/10 text-primary-800 dark:text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors font-medium"
+                                                type="button">+ Pack (50)</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
+                                    <div
+                                        class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100/50 dark:bg-gray-700/30">
+                                        <h5
+                                            class="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <span
+                                                class="material-symbols-outlined text-gray-500 text-lg">straighten</span>
+                                            Deduction Amount per Product-Size
+                                        </h5>
+                                        <span class="text-xs text-gray-500">Amount used</span>
+                                    </div>
+                                    <div class="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Small
+                                                Pizza</label>
+                                            <div class="relative">
+                                                <input
+                                                    class="block w-full pr-8 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:ring-primary focus:border-primary py-2"
+                                                    type="number" value="6" />
+                                                <span
+                                                    class="absolute right-2.5 top-2 text-xs text-gray-400 font-mono pt-0.5">slc</span>
+                                            </div>
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Medium
+                                                Pizza</label>
+                                            <div class="relative">
+                                                <input
+                                                    class="block w-full pr-8 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:ring-primary focus:border-primary py-2"
+                                                    type="number" value="10" />
+                                                <span
+                                                    class="absolute right-2.5 top-2 text-xs text-gray-400 font-mono pt-0.5">slc</span>
+                                            </div>
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Large
+                                                Pizza</label>
+                                            <div class="relative">
+                                                <input
+                                                    class="block w-full pr-8 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:ring-primary focus:border-primary py-2"
+                                                    type="number" value="14" />
+                                                <span
+                                                    class="absolute right-2.5 top-2 text-xs text-gray-400 font-mono pt-0.5">slc</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex items-start gap-4 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/20">
+                                    <div
+                                        class="p-2 bg-yellow-100 dark:bg-yellow-900/40 rounded-full text-yellow-700 dark:text-yellow-500 shrink-0">
+                                        <span class="material-symbols-outlined text-xl">notifications_active</span>
+                                    </div>
+                                    <div class="flex-1 space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <label class="text-sm font-bold text-gray-900 dark:text-white block">Low
+                                                    Stock Alert</label>
+                                                <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Notify
+                                                    kitchen staff when stock is running low.</p>
+                                            </div>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input checked="" class="sr-only peer" type="checkbox" value="" />
+                                                <div
+                                                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary">
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <div class="flex items-center gap-3 pt-1">
+                                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Trigger
+                                                alert below:</span>
+                                            <div class="flex items-center">
+                                                <input
+                                                    class="w-20 py-1 px-2 rounded-l-lg border-gray-300 dark:border-gray-600 text-sm focus:ring-primary focus:border-primary"
+                                                    type="number" value="50" />
+                                                <div
+                                                    class="bg-gray-100 dark:bg-gray-700 border-y border-r border-gray-300 dark:border-gray-600 px-2.5 py-1 rounded-r-lg">
+                                                    <span
+                                                        class="text-xs font-mono text-gray-500 dark:text-gray-400">units</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between gap-3 shrink-0">
+                        <button
+                            class="text-red-500 hover:text-red-700 text-sm font-medium px-2 transition-colors">Delete
+                            Item</button>
+                        <div class="flex gap-3">
+                            <button
+                                class="px-5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+                            <button
+                                class="px-5 py-2.5 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-gray-200 dark:shadow-none">Save
+                                Changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

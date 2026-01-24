@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Rotante Updates</title>
+    <item>
+      <title>Version 1.2.0</title>
+      <sparkle:version>1.2.0</sparkle:version>
+      <description>
+        <![CDATA[
+          <h2>Initial Release</h2>
+          <ul>
+            <li>First version of Rotante</li>
+          </ul>
+        ]]>
+      </description>
+      <enclosure url="https://cnsuywzypkgqolersryr.supabase.co/storage/v1/object/public/updates/Rotante_Setup.exe" 
+                 sparkle:version="1.2.0" 
+                 sparkle:os="windows" />
+    </item>
+  </channel>
+</rss>

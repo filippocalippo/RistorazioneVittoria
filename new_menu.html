@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>PizzaAdmin - Menu Overview</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#9bbeac",
+                        "primary-dark": "#7da696",
+                        "background-light": "#f8f9fa",
+                        "background-dark": "#211111",
+                        "surface-dark": "#2d1b1b",
+                        "surface-light": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Spline Sans", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light text-slate-800 font-display transition-colors duration-200">
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-64 flex-shrink-0 border-r border-gray-200 bg-surface-light hidden md:flex flex-col">
+            <div class="flex h-16 items-center px-6 border-b border-gray-200">
+                <div class="flex items-center gap-2 text-primary">
+                    <span class="material-symbols-outlined fill text-3xl">local_pizza</span>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900">PizzaAdmin</h1>
+                </div>
+            </div>
+            <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-gray-50 hover:text-primary transition-colors group"
+                    href="#">
+                    <span class="material-symbols-outlined group-hover:text-primary">dashboard</span>
+                    <span class="font-medium">Dashboard</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary-dark transition-colors"
+                    href="#">
+                    <span class="material-symbols-outlined fill text-primary">restaurant_menu</span>
+                    <span class="font-medium">Menu</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-gray-50 hover:text-primary transition-colors group"
+                    href="#">
+                    <span class="material-symbols-outlined group-hover:text-primary">shopping_bag</span>
+                    <span class="font-medium">Orders</span>
+                    <span class="ml-auto bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">12</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-gray-50 hover:text-primary transition-colors group"
+                    href="#">
+                    <span class="material-symbols-outlined group-hover:text-primary">group</span>
+                    <span class="font-medium">Customers</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-gray-50 hover:text-primary transition-colors group"
+                    href="#">
+                    <span class="material-symbols-outlined group-hover:text-primary">inventory_2</span>
+                    <span class="font-medium">Inventory</span>
+                </a>
+                <div class="pt-4 mt-4 border-t border-gray-200">
+                    <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:bg-gray-50 hover:text-primary transition-colors group"
+                        href="#">
+                        <span class="material-symbols-outlined group-hover:text-primary">settings</span>
+                        <span class="font-medium">Settings</span>
+                    </a>
+                </div>
+            </nav>
+            <div class="p-4 border-t border-gray-200">
+                <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50">
+                    <img alt="Profile" class="h-9 w-9 rounded-full object-cover"
+                        data-alt="User profile picture of a man"
+                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5q-r_0pDcozRM6dN2Cnvk4yglsmah24kfR2SIvGjYy62lMO_4gfytzNz-l-dfikClYl6TPtEB0NyrFxCmQRV0MBzsMGMmyVrJMUkU_dGLYZ3wZn1_24FQ9n34Y6rXgvxHG57op1cdGDLWz4OFJFjZdwt02xnLcvf2PKu2DM9rpGTMyEDiLZrGi6aVM66KxfNrfVjgXiYfESNHoCr9YnebR6GLzi_zC0HdXx5SZZpfnUCpOLSrA1VVU1t6gfRDY1pqhlILbS7v6Q" />
+                    <div class="flex flex-col">
+                        <span class="text-sm font-bold text-slate-900">Mario R.</span>
+                        <span class="text-xs text-slate-500">Owner</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background-light">
+            <header
+                class="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-surface-light shadow-sm">
+                <div class="flex items-center gap-4 md:hidden">
+                    <button class="text-slate-500 hover:text-primary">
+                        <span class="material-symbols-outlined">menu</span>
+                    </button>
+                    <span class="text-lg font-bold text-slate-900">Menu</span>
+                </div>
+                <div class="hidden md:flex flex-1 max-w-lg ml-0">
+                    <div class="relative w-full text-slate-400 focus-within:text-primary">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span class="material-symbols-outlined">search</span>
+                        </div>
+                        <input
+                            class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm transition-colors"
+                            placeholder="Search menu items..." type="text" />
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button class="relative p-2 text-slate-400 hover:text-slate-500 transition-colors">
+                        <span class="material-symbols-outlined">notifications</span>
+                        <span class="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+                    </button>
+                    <button
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white font-medium text-sm hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20 hover:shadow-primary/40 active:scale-95 transform duration-150">
+                        <span class="material-symbols-outlined text-[20px]">add</span>
+                        <span class="hidden sm:inline">Add Product</span>
+                    </button>
+                </div>
+            </header>
+            <div class="flex-1 overflow-auto p-6 md:p-8 bg-gray-50/50">
+                <div class="max-w-7xl mx-auto space-y-6">
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                        <div>
+                            <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Menu Overview</h2>
+                            <p class="mt-1 text-slate-500">Manage your pizza inventory, prices, and availability.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="relative inline-block text-left">
+                                <button
+                                    class="inline-flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-primary shadow-sm transition-all">
+                                    Category: All
+                                    <span
+                                        class="material-symbols-outlined ml-2 text-[20px] text-slate-400">expand_more</span>
+                                </button>
+                            </div>
+                            <div class="relative inline-block text-left">
+                                <button
+                                    class="inline-flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-primary shadow-sm transition-all">
+                                    Sort By: Price
+                                    <span
+                                        class="material-symbols-outlined ml-2 text-[20px] text-slate-400">expand_more</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div
+                            class="bg-white rounded-xl p-6 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 flex items-start justify-between group hover:border-primary/30 transition-colors">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500">Total Items</p>
+                                <p class="mt-2 text-3xl font-bold text-slate-900">48</p>
+                                <div
+                                    class="mt-2 flex items-center text-sm text-green-600 bg-green-50 px-2 py-0.5 rounded-full w-fit">
+                                    <span class="material-symbols-outlined text-[16px] mr-1">trending_up</span>
+                                    <span>+4 added this week</span>
+                                </div>
+                            </div>
+                            <div
+                                class="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                                <span class="material-symbols-outlined">inventory_2</span>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-white rounded-xl p-6 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 flex items-start justify-between group hover:border-primary/30 transition-colors">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500">Top Seller</p>
+                                <p class="mt-2 text-3xl font-bold text-slate-900">Pepperoni Feast</p>
+                                <div class="mt-2 flex items-center text-sm text-slate-500">
+                                    <span>142 orders today</span>
+                                </div>
+                            </div>
+                            <div
+                                class="p-3 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                                <span class="material-symbols-outlined">trophy</span>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-white rounded-xl p-6 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 flex items-start justify-between group hover:border-primary/30 transition-colors">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500">Low Stock</p>
+                                <p class="mt-2 text-3xl font-bold text-slate-900">2 Items</p>
+                                <div
+                                    class="mt-2 flex items-center text-sm text-red-600 bg-red-50 px-2 py-0.5 rounded-full w-fit">
+                                    <span class="material-symbols-outlined text-[16px] mr-1">warning</span>
+                                    <span>Needs attention</span>
+                                </div>
+                            </div>
+                            <div
+                                class="p-3 bg-red-50 text-red-500 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                                <span class="material-symbols-outlined">low_priority</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-200">
+                                        <th
+                                            class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                            Product</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                            Category</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                            Price</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                            Status</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">
+                                            Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <tr class="group hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center gap-4">
+                                                <div
+                                                    class="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+                                                    <img alt="Pepperoni Pizza"
+                                                        class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        data-alt="Close up of a pepperoni pizza slice"
+                                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuApt9nJriCjfa-nkUyG2Eyp37oClXYTT-nPGE7r9-BDrV-2ZEBLUrJ-YmzzE4khdsy7q3GjTp9C4p33CsPyNhbGzLYYOlQOWap1JBVneXh4FQb_T_edCe2emYp8jY_f-aCXJbaSBUynoEcA6QtB_OGWsn0lk_EzhStE5_2Zrr9TgISHLb-67IEEPpygtu210jKS89IITzUa1HYxw-6M2QnJtR4_VB1gjcObaJO3JUIjBPtBhz272dCJBXTovfsh1c4rwBCcekU5Tw" />
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-bold text-slate-900">Pepperoni Feast</div>
+                                                    <div class="text-xs text-slate-500">ID: #PZ-001</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                                Meat
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                            $18.00
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div
+                                                    class="h-2 w-2 rounded-full bg-green-500 mr-2 shadow-[0_0_8px_rgba(34,197,94,0.6)]">
+                                                </div>
+                                                <span class="text-sm text-slate-600">Available</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                                    title="Edit">
+                                                    <span class="material-symbols-outlined text-[20px]">edit</span>
+                                                </button>
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                    title="Delete">
+                                                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="group hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center gap-4">
+                                                <div
+                                                    class="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+                                                    <img alt="Margherita Pizza"
+                                                        class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        data-alt="Classic margherita pizza with basil leaves"
+                                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjsEcztGPYd2oB_7S95Wcc5a50QhGC2h64id5RkGtDRmycjOeM1MUITWyiZWYl6ZwArvNsAPsSWkoMJBdgcl_io-o9f9cfZlZc3oackAxKPHMAaYS2qv1DdzJHgFBSZ8JaL-9tEckv2DAXCXVkTS0YJG81XV4JLgkE4XNSVUIX85NYU5oRitysy-HJ3CaleChdD5P4QPZsOaWTVLJFNAVGoN7L1Tp7efuxyHqd3uSmu5U4KpRmdZSiWB7rlg6KQ38ksmbSJFnfBw" />
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-bold text-slate-900">Margherita Classic
+                                                    </div>
+                                                    <div class="text-xs text-slate-500">ID: #PZ-002</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                                Vegetarian
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                            $14.00
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div
+                                                    class="h-2 w-2 rounded-full bg-green-500 mr-2 shadow-[0_0_8px_rgba(34,197,94,0.6)]">
+                                                </div>
+                                                <span class="text-sm text-slate-600">Available</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                                    title="Edit">
+                                                    <span class="material-symbols-outlined text-[20px]">edit</span>
+                                                </button>
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                    title="Delete">
+                                                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="group hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center gap-4">
+                                                <div
+                                                    class="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+                                                    <img alt="Hawaiian Pizza"
+                                                        class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        data-alt="Top view of pizza with pineapple chunks"
+                                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEZdyF0vUQ9evZXYwMfx3t9SThr3LPymCpFetn47dmqws1zPW_rwLC4YUov-cuM409Kq84wsTZjfOlW28dgmeRpoXYu94LUwu0OzZB6SLKQwtcGD2tokGrY3g3Lr54ZRsslm0dMHmBpOQhMM0XEQg51LIxF8hiEWV3vvbeHBn-IW4mchka0x_qFgWCDZvplureBlnXdMVA36q-sevULtxWYu0dp5n8UVaUSOmSnFJYZX9Lkx2nbzan92GGVw3GKhywc8MkSlr9lQ" />
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-bold text-slate-900">Hawaiian Sunset</div>
+                                                    <div class="text-xs text-slate-500">ID: #PZ-003</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                                Meat
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                            $16.50
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div
+                                                    class="h-2 w-2 rounded-full bg-red-500 mr-2 shadow-[0_0_8px_rgba(239,68,68,0.6)]">
+                                                </div>
+                                                <span class="text-sm text-slate-600">Sold Out</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                                    title="Edit">
+                                                    <span class="material-symbols-outlined text-[20px]">edit</span>
+                                                </button>
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                    title="Delete">
+                                                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="group hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center gap-4">
+                                                <div
+                                                    class="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+                                                    <img alt="Veggie Supreme Pizza"
+                                                        class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        data-alt="Colorful pizza loaded with bell peppers and onions"
+                                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuBO5gCnmhsd2iRN_5Uz33l0v0jg3dr7REHTrTLieeN2ht4EMqA6BjUt-qCzZTYHTEUv6mLdQxttqdL2jqb-KLlOdYlql3gZemh-jGWbJZUWwjXQRg3mp56refSXYuOtTlZyFga3uK8yZkjYkI-9y893gruyZDqHtK5GQPCbm0VeQp2RShgE2_PcH7b1LqRfc-2QU78kIVd2bPllJGHegR-5aFf0QAqp2LU0973XqnbsaCyb6QLMdnafvSqyeIpPBfDJa707LqNIqg" />
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-bold text-slate-900">Garden Supreme</div>
+                                                    <div class="text-xs text-slate-500">ID: #PZ-004</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                                Vegetarian
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                            $15.00
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div
+                                                    class="h-2 w-2 rounded-full bg-yellow-500 mr-2 shadow-[0_0_8px_rgba(234,179,8,0.6)]">
+                                                </div>
+                                                <span class="text-sm text-slate-600">Low Stock</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                                    title="Edit">
+                                                    <span class="material-symbols-outlined text-[20px]">edit</span>
+                                                </button>
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                    title="Delete">
+                                                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="group hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center gap-4">
+                                                <div
+                                                    class="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+                                                    <img alt="BBQ Chicken Pizza"
+                                                        class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        data-alt="Pizza topped with barbecue sauce and chicken"
+                                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-Y1jwpJjb7zPz9ZS9Q_HCyXU4cmKd-8oQLGMz_evUquT1jAZRWQst4hSwm4QkRfOe3tCbUwz3Q0D_b-7XX3Y-egMS74JRvpkkvJWGEBn7z7mYYHzZm4CXrUHy7RZOzu7QwYr4V-bAMMPSQyHZZtUeN_xbKpqiviF5NnpAQcXTyuyX4DV2p4Oa0rgQbMERXYtM-l04TH1o05CZPChUTx_39L5Oz2fAA7lxNgH4RE56Nw9YzcykByH8zuC27KRVRnajTWrnRvrsQA" />
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-bold text-slate-900">BBQ Chicken Ranch
+                                                    </div>
+                                                    <div class="text-xs text-slate-500">ID: #PZ-005</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                                Meat
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                            $19.00
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div
+                                                    class="h-2 w-2 rounded-full bg-green-500 mr-2 shadow-[0_0_8px_rgba(34,197,94,0.6)]">
+                                                </div>
+                                                <span class="text-sm text-slate-600">Available</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex items-center justify-end gap-2">
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                                    title="Edit">
+                                                    <span class="material-symbols-outlined text-[20px]">edit</span>
+                                                </button>
+                                                <button
+                                                    class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                    title="Delete">
+                                                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                            <div class="flex items-center justify-between">
+                                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                                    <div>
+                                        <p class="text-sm text-slate-500">
+                                            Showing
+                                            <span class="font-medium text-slate-900">1</span>
+                                            to
+                                            <span class="font-medium text-slate-900">5</span>
+                                            of
+                                            <span class="font-medium text-slate-900">48</span>
+                                            results
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <nav aria-label="Pagination"
+                                            class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                                            <a class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-slate-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                                href="#">
+                                                <span class="sr-only">Previous</span>
+                                                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                                            </a>
+                                            <a aria-current="page"
+                                                class="z-10 bg-primary/10 border-primary text-primary-dark relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+                                                href="#">
+                                                1
+                                            </a>
+                                            <a class="bg-white border-gray-300 text-slate-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+                                                href="#">
+                                                2
+                                            </a>
+                                            <a class="bg-white border-gray-300 text-slate-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+                                                href="#">
+                                                3
+                                            </a>
+                                            <span
+                                                class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-slate-700">
+                                                ...
+                                            </span>
+                                            <a class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-slate-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                                href="#">
+                                                <span class="sr-only">Next</span>
+                                                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                                            </a>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+</body>
+
+</html>

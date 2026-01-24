@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\pc\\Desktop\\altro\\printer\\logs\\.29a4a1cc3acf1ba3f1f606840e61c9931cbcf732-audit.json",
+    "files": [
+        {
+            "date": 1764950347324,
+            "name": "C:\\Users\\pc\\Desktop\\altro\\printer\\logs\\rotante-printer-2025-12-05.log",
+            "hash": "bb285ec64fea6b3395fb91a3c811f906d511d06240917f342f149e5a30375e7b"
+        }
+    ],
+    "hashType": "sha256"
+}

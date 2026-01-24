@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>User Management - Mama Mia Pizza</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;900&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#9bbeac", // Updated to user request
+                        "primary-hover": "#8aa89b", // Slightly darker for hover states
+                        "accent": "#9bbeac",
+                        "background-light": "#f8f6f6",
+                        "text-main": "#181111",
+                        "text-sub": "#886364",
+                        "border-color": "#e5dcdc"
+                    },
+                    fontFamily: {
+                        "display": ["Be Vietnam Pro", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: "Be Vietnam Pro", "Noto Sans", sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light text-text-main overflow-x-hidden">
+    <div class="relative flex h-screen w-full overflow-hidden">
+        <aside class="w-72 flex-none flex flex-col bg-white border-r border-border-color">
+            <div class="flex h-full flex-col justify-between p-4">
+                <div class="flex flex-col gap-4">
+                    <div class="flex gap-3 px-2 py-4">
+                        <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12 shadow-sm"
+                            data-alt="Close up of a delicious pepperoni pizza"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAYjZCIJREdGBL61DPguVWlIuM3Vw5c5n-mKqOMFRgrl8CiftRBpejaW6XbJmQBxklLyaZlNVMrag6zlD6nmxtewI2vBxZV1CjL8Eoj9PKr0LJmpDVo7X6IC9JoR6Kzwv_DyO1PFKYt_D26ZvZon0Uv2qVxsrPPtiQvhzYIDBl7YJKOHlRq5eGDtbEFE6eJsZ2um_216ovfHCEYoo6ei031lzuz_m8_B8h2pMeX4GYEqa34tKG-Am--2C6lQt-10xZ_TFRnbQYFFP-X");'>
+                        </div>
+                        <div class="flex flex-col justify-center">
+                            <h1 class="text-text-main text-lg font-bold leading-tight">Mama Mia Pizza</h1>
+                            <p class="text-primary text-xs font-medium uppercase tracking-wider">Management</p>
+                        </div>
+                    </div>
+                    <nav class="flex flex-col gap-2">
+                        <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-background-light transition-colors group"
+                            href="#">
+                            <span
+                                class="material-symbols-outlined text-text-sub group-hover:text-primary">dashboard</span>
+                            <p class="text-text-main text-sm font-medium leading-normal">Dashboard</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-background-light transition-colors group"
+                            href="#">
+                            <span
+                                class="material-symbols-outlined text-text-sub group-hover:text-primary">shopping_bag</span>
+                            <p class="text-text-main text-sm font-medium leading-normal">Orders</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-3 rounded-full bg-primary/20" href="#">
+                            <span class="material-symbols-outlined text-text-main fill-1">group</span>
+                            <p class="text-text-main text-sm font-bold leading-normal">Users</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-background-light transition-colors group"
+                            href="#">
+                            <span
+                                class="material-symbols-outlined text-text-sub group-hover:text-primary">inventory_2</span>
+                            <p class="text-text-main text-sm font-medium leading-normal">Inventory</p>
+                        </a>
+                        <a class="flex items-center gap-3 px-3 py-3 rounded-full hover:bg-background-light transition-colors group"
+                            href="#">
+                            <span
+                                class="material-symbols-outlined text-text-sub group-hover:text-primary">settings</span>
+                            <p class="text-text-main text-sm font-medium leading-normal">Settings</p>
+                        </a>
+                    </nav>
+                </div>
+                <div class="flex items-center gap-3 px-3 py-3 border-t border-border-color mt-4">
+                    <div class="size-10 rounded-full bg-gray-200 bg-center bg-cover"
+                        data-alt="Portrait of the logged in user"
+                        style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCNg0iwt2o-Yr-nnAUslxW88A7pcL-fl0pUYr_ON1dAMCdXnA-e7-PYcZFTTEXVEv6X4U_xwDbW4a3qLjhs1gxJT3d15__6487EXqS0MhRjiCZlZ2jPCTtZlpmLjd6PYs2iusswe-DWx0tZeLH0KumrQ609zyDchmwlL8__z2mXUzIVgD3MkEVcv3EB-JhnD5CwJu_eRwWhcLuaNKpFi9caY-4beVmRc0oYhpZkZBDYrVkEFU3pP18YN8ohW6Nz3ZtVyin_aI35ogBf');">
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="text-sm font-bold text-text-main">Mario Rossi</p>
+                        <p class="text-xs text-text-sub">Store Manager</p>
+                    </div>
+                    <button class="ml-auto text-text-sub hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">logout</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+        <main class="flex-1 flex flex-col h-full overflow-y-auto bg-background-light">
+            <div class="max-w-[1200px] w-full mx-auto p-6 md:p-10 flex flex-col gap-8">
+                <div class="flex flex-wrap justify-between items-end gap-4">
+                    <div class="flex flex-col gap-2">
+                        <h1 class="text-text-main text-4xl font-black leading-tight tracking-[-0.033em]">Team Members
+                        </h1>
+                        <p class="text-text-sub text-base font-normal leading-normal max-w-xl">
+                            Manage access permissions, roles, and account status for your pizzeria staff.
+                        </p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button
+                            class="flex items-center gap-2 bg-white text-text-main px-5 py-3 rounded-full text-sm font-bold hover:bg-gray-50 border border-border-color transition-all">
+                            <span class="material-symbols-outlined text-[20px]">file_upload</span>
+                            Export
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white rounded-xl p-6 border border-border-color shadow-sm flex flex-col gap-1">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[#5c4a4a] text-sm font-medium">Total Staff</p>
+                            <span class="material-symbols-outlined text-primary text-[24px]">badge</span>
+                        </div>
+                        <p class="text-text-main text-3xl font-black mt-2">24</p>
+                        <p class="text-primary text-sm font-bold flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[16px]">trending_up</span> +2 this week
+                        </p>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 border border-border-color shadow-sm flex flex-col gap-1">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[#5c4a4a] text-sm font-medium">Active Users</p>
+                            <span class="material-symbols-outlined text-primary text-[24px]">person_check</span>
+                        </div>
+                        <p class="text-text-main text-3xl font-black mt-2">21</p>
+                        <p class="text-text-sub text-sm font-medium">87% Operational</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 border border-border-color shadow-sm flex flex-col gap-1">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[#5c4a4a] text-sm font-medium">Pending Invites</p>
+                            <span class="material-symbols-outlined text-primary text-[24px]">mail</span>
+                        </div>
+                        <p class="text-text-main text-3xl font-black mt-2">3</p>
+                        <p class="text-primary text-sm font-medium">Action Required</p>
+                    </div>
+                </div>
+                <div
+                    class="flex flex-col md:flex-row gap-4 bg-white p-2 rounded-2xl border border-border-color shadow-sm">
+                    <div class="flex-1">
+                        <label
+                            class="flex items-center h-12 w-full bg-[#f8f6f6] rounded-xl px-4 gap-3 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                            <span class="material-symbols-outlined text-text-sub">search</span>
+                            <input
+                                class="bg-transparent border-none outline-none w-full text-text-main placeholder-text-sub text-base"
+                                placeholder="Search staff by name or email..." />
+                        </label>
+                    </div>
+                    <div class="md:w-48">
+                        <div class="relative h-12">
+                            <select
+                                class="w-full h-full appearance-none bg-[#f8f6f6] rounded-xl px-4 text-text-main border-none outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer">
+                                <option value="">All Roles</option>
+                                <option value="admin">Administrator</option>
+                                <option value="manager">Manager</option>
+                                <option value="staff">Kitchen Staff</option>
+                                <option value="driver">Delivery Driver</option>
+                            </select>
+                            <span
+                                class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-text-sub pointer-events-none">expand_more</span>
+                        </div>
+                    </div>
+                    <button
+                        class="bg-primary hover:bg-primary-hover text-white h-12 px-6 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/20">
+                        <span class="material-symbols-outlined">add</span>
+                        Add Member
+                    </button>
+                </div>
+                <div class="bg-white rounded-2xl border border-border-color shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-border-color bg-gray-50/50">
+                                    <th class="p-4 pl-6 text-[#5c4a4a] font-medium text-sm">User</th>
+                                    <th class="p-4 text-[#5c4a4a] font-medium text-sm">Role</th>
+                                    <th class="p-4 text-[#5c4a4a] font-medium text-sm">Status</th>
+                                    <th class="p-4 text-[#5c4a4a] font-medium text-sm">Last Active</th>
+                                    <th class="p-4 pr-6 text-[#5c4a4a] font-medium text-sm text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border-color">
+                                <tr class="group hover:bg-[#f8f6f6] transition-colors">
+                                    <td class="p-4 pl-6">
+                                        <div class="flex items-center gap-3">
+                                            <div class="size-10 rounded-full bg-cover bg-center"
+                                                data-alt="Portrait of Sofia Bianchi"
+                                                style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuARMorKA2bHCmiPwV_yfRW8UD-NgmNMd9sztUMuY8e9yH3RcKlqz1x9nMNKnWSxr4zP9XjibXDdVac9Fqdz0UU4VS_0jTZ7lfAi-oiOmfUTVV5gA4o3ZG-c7Rrfs4WffPh3OJLsG3egRzs16l7B5ItjQtJ_-lm1h9g-h79Jb1J4f2fv2dmI63u36ZKekjWO3qfIJYpAC3WuJpJrLm--VZHqclRVNsXAeQNmyFyI0HspHW-4PMakxuThTncLNe7VzlT_1d964HiWFMJP');">
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-text-main font-bold text-sm">Sofia Bianchi</span>
+                                                <span class="text-text-sub text-xs">sofia@mamamia.com</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                            Manager
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-2 rounded-full bg-primary"></div>
+                                            <span class="text-sm font-medium text-text-main">Active</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="text-sm text-[#5c4a4a]">2 mins ago</span>
+                                    </td>
+                                    <td class="p-4 pr-6 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">edit</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="group hover:bg-[#f8f6f6] transition-colors">
+                                    <td class="p-4 pl-6">
+                                        <div class="flex items-center gap-3">
+                                            <div class="size-10 rounded-full bg-cover bg-center"
+                                                data-alt="Portrait of Marco Rossi"
+                                                style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAUi5AUKBFyGSs8tlzjIQ4EZ0-iIZJGRGNRYZmMJzM5PKa1nFiJPZMQNT7SzStjw5-QQcSzgzNaWIHGf_Je8vBEXhjUGbdLUu4CUgqMS37Zyf78iWZHp6-495nyMdqVlskFKzMlOts64LapzNcMdO_I5WMOHq1ULCKsEBRrew412LSkttw97dzTnY27PSyVaFIpRAJViy609UnSmKKgMNRR9xrWUKNB_rUV3n2ChTbzljnV9gf3xYzUpQD5XZsluY2eM_Qc83bPBTCV');">
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-text-main font-bold text-sm">Marco Rossi</span>
+                                                <span class="text-text-sub text-xs">marco.chef@mamamia.com</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            Head Chef
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-2 rounded-full bg-primary"></div>
+                                            <span class="text-sm font-medium text-text-main">Active</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="text-sm text-[#5c4a4a]">4 hours ago</span>
+                                    </td>
+                                    <td class="p-4 pr-6 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">edit</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="group hover:bg-[#f8f6f6] transition-colors">
+                                    <td class="p-4 pl-6">
+                                        <div class="flex items-center gap-3">
+                                            <div class="size-10 rounded-full bg-cover bg-center"
+                                                data-alt="Portrait of Giuseppe Verdi"
+                                                style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDbEhzUaLBa1Sg1yTCfZNBG6erPm15ec1D1FNPfooYtohnhaslNe5RNAOoSJKZZOXrlF0qwMEa7LaGRanKhD5gzd6DOHlvhJ5QHrSiCppciuSdu4oy5CxM9bxNrfrt0EE_YIGJ1n95Vp61TJfZtBXtuJd7RPVMGgonWpz_PPl4MKf1IkIwr_uqeWuqSLz8oDZFHC61corotVveR8dGFucGwGxcuBl_xMJQO-cvv61MfDQg-jm9I4XYL8VoA9bUHmPijWXJhx5VSZjDV');">
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-text-main font-bold text-sm">Giuseppe Verdi</span>
+                                                <span class="text-text-sub text-xs">g.verdi@mamamia.com</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                            Delivery
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-2 rounded-full bg-gray-300"></div>
+                                            <span class="text-sm font-medium text-[#5c4a4a]">Offline</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="text-sm text-[#5c4a4a]">Yesterday</span>
+                                    </td>
+                                    <td class="p-4 pr-6 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">edit</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="group hover:bg-[#f8f6f6] transition-colors">
+                                    <td class="p-4 pl-6">
+                                        <div class="flex items-center gap-3">
+                                            <div class="size-10 rounded-full bg-cover bg-center bg-[#f4f0f0] flex items-center justify-center text-text-sub font-bold text-sm border border-border-color"
+                                                data-alt="Avatar placeholder with initials AL">AL</div>
+                                            <div class="flex flex-col">
+                                                <span class="text-text-main font-bold text-sm">Anna Lucci</span>
+                                                <span class="text-text-sub text-xs">anna.l@mamamia.com</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            Staff
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-2 rounded-full bg-primary animate-pulse"></div>
+                                            <span class="text-sm font-medium text-text-main">Invited</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="text-sm text-[#5c4a4a]">Never</span>
+                                    </td>
+                                    <td class="p-4 pr-6 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
+                                                title="Resend Invite">
+                                                <span class="material-symbols-outlined text-[20px]">send</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="group hover:bg-[#f8f6f6] transition-colors">
+                                    <td class="p-4 pl-6">
+                                        <div class="flex items-center gap-3">
+                                            <div class="size-10 rounded-full bg-cover bg-center"
+                                                data-alt="Portrait of Luca Moretti"
+                                                style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDJWo6cqpXI_WrO93HgTl3GrOcTPPFIDWQa40uKuhc3J2E7m4CesPWoNTpkxnAzO-rC1mvPn14TBcbfHCbzQSSipiQuKNkuamqwH1TS81e7Z_VoPGhClBDmku61SdYi92PxY74OiJELcai2-cSz9bNMTyey1s6MT0I9u5rlbMWoGTbCtBK27wVfFvfKpV7o3RBAxd-7gfdETKTsx98Vct1H52F17485jZ16B-X3apTOhnbD0GOZhC8nyCMl3ej2mO1VMC_ZEUzicUIx');">
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-text-main font-bold text-sm">Luca Moretti</span>
+                                                <span class="text-text-sub text-xs">luca.m@mamamia.com</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                            Delivery
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-2 rounded-full bg-primary"></div>
+                                            <span class="text-sm font-medium text-text-main">Active</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="text-sm text-[#5c4a4a]">1 hour ago</span>
+                                    </td>
+                                    <td class="p-4 pr-6 text-right">
+                                        <div
+                                            class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">edit</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-text-sub hover:text-primary hover:bg-primary/10 rounded-full transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex items-center justify-between px-6 py-4 border-t border-border-color bg-gray-50/30">
+                        <p class="text-sm text-text-sub">Showing 1-5 of 24 users</p>
+                        <div class="flex gap-2">
+                            <button
+                                class="size-8 flex items-center justify-center rounded-full border border-border-color text-text-main hover:bg-white transition-colors disabled:opacity-50"
+                                disabled="">
+                                <span class="material-symbols-outlined text-[16px]">chevron_left</span>
+                            </button>
+                            <button
+                                class="size-8 flex items-center justify-center rounded-full bg-primary text-white font-bold text-sm shadow-sm">1</button>
+                            <button
+                                class="size-8 flex items-center justify-center rounded-full border border-border-color text-text-main hover:bg-white transition-colors">2</button>
+                            <button
+                                class="size-8 flex items-center justify-center rounded-full border border-border-color text-text-main hover:bg-white transition-colors">3</button>
+                            <button
+                                class="size-8 flex items-center justify-center rounded-full border border-border-color text-text-main hover:bg-white transition-colors">
+                                <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+</body>
+
+</html>
