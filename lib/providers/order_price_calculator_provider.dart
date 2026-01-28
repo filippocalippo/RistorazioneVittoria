@@ -32,14 +32,17 @@ class AllSizeAssignments extends _$AllSizeAssignments {
     final supabase = Supabase.instance.client;
     final orgId = await ref.read(currentOrganizationProvider.future);
 
+    // SECURITY: Require organization context to prevent cross-tenant data access
+    if (orgId == null) {
+      throw Exception('Organization context required');
+    }
+
     try {
-      var query = supabase.from('menu_item_sizes').select('*, sizes_master(*)');
-
-      if (orgId != null) {
-        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
-      }
-
-      final response = await query.order('ordine', ascending: true);
+      final response = await supabase
+          .from('menu_item_sizes')
+          .select('*, sizes_master(*)')
+          .eq('organization_id', orgId)
+          .order('ordine', ascending: true);
 
       return (response as List).map((json) {
         final sizeData = json['sizes_master'] as Map<String, dynamic>?;

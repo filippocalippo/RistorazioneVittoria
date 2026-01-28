@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/utils/logger.dart';
+import 'cart_provider.dart';
 
 part 'organization_provider.g.dart';
 
@@ -44,31 +46,8 @@ class CurrentOrganization extends _$CurrentOrganization {
             .eq('id', userId);
         return firstOrgId;
       }
-
-      // Fallback: get any active organization (for single-tenant compatibility)
-      final anyOrg = await client
-          .from('organizations')
-          .select('id')
-          .eq('is_active', true)
-          .limit(1);
-
-      if (anyOrg.isNotEmpty) {
-        return anyOrg.first['id'] as String;
-      }
-
       return null;
     } catch (e) {
-      // Fallback for compatibility
-      try {
-        final orgs = await client
-            .from('organizations')
-            .select('id')
-            .eq('is_active', true)
-            .limit(1);
-        if (orgs.isNotEmpty) {
-          return orgs.first['id'] as String;
-        }
-      } catch (_) {}
       return null;
     }
   }
@@ -79,12 +58,60 @@ class CurrentOrganization extends _$CurrentOrganization {
     final userId = client.auth.currentUser?.id;
     if (userId == null) return;
 
+    // Clear cart BEFORE switching org to prevent cross-org data contamination
+    await ref.read(cartProvider.notifier).clearForOrganization(organizationId);
+
     await client
         .from('profiles')
         .update({'current_organization_id': organizationId})
         .eq('id', userId);
 
     ref.invalidateSelf();
+  }
+
+  /// Join an organization and set as current (edge function handles membership)
+  Future<void> joinAndSetCurrent(String organizationId) async {
+    final client = Supabase.instance.client;
+
+    // Ensure we have a fresh session
+    final session = client.auth.currentSession;
+    if (session == null) {
+      throw Exception('Sessione non valida. Effettua nuovamente il login.');
+    }
+
+    // Check if token is expired (expires_at is in seconds since epoch)
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (session.expiresAt != null && session.expiresAt! < now) {
+      // Token expired, try to refresh
+      Logger.debug('Token expired, refreshing...', tag: 'OrganizationProvider');
+      final response = await client.auth.refreshSession();
+      if (response.user == null) {
+        throw Exception('Sessione scaduta. Effettua nuovamente il login.');
+      }
+    }
+
+    final accessToken = client.auth.currentSession?.accessToken;
+    if (accessToken == null) {
+      throw Exception('Impossibile ottenere il token di accesso.');
+    }
+
+    final response = await client.functions.invoke(
+      'join-organization',
+      body: {'organizationId': organizationId},
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.status != 200) {
+      final error = response.data is Map ? response.data['error'] : null;
+      Logger.error(
+        'Join org failed: ${response.status} - $error',
+        tag: 'OrganizationProvider',
+      );
+      throw Exception(error ?? 'Errore durante la richiesta di join');
+    }
+
+    ref.invalidateSelf();
+    ref.invalidate(userOrganizationsProvider);
   }
 
   /// Refresh organization context

@@ -40,6 +40,7 @@ dependencies:
   uuid: ^4.4.0
   http: ^1.2.2
   flutter_multi_formatter: ^2.13.10
+  connectivity_plus: ^6.0.3
   
   # Images & Media
   cached_network_image: ^3.3.1
@@ -72,6 +73,7 @@ dependencies:
   auto_updater: ^1.0.0
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.1.3
+  app_links: ^6.3.0
   
   # Payments
   flutter_stripe: ^11.3.0
@@ -79,6 +81,10 @@ dependencies:
   crypto: ^3.0.7
   share_plus: ^12.0.1
   path_provider: ^2.1.5
+
+  # Monitoring & Analytics
+  sentry_flutter: ^8.9.0
+  convert: ^3.1.1
 
 dev_dependencies:
   flutter_test:

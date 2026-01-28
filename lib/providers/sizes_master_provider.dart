@@ -20,14 +20,16 @@ class SizesMaster extends _$SizesMaster {
     final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      var query = supabase.from('sizes_master').select();
-
-      // Multi-tenant filter: org-specific or global (null)
-      if (orgId != null) {
-        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        throw Exception('Organization context required');
       }
 
-      final response = await query.order('ordine', ascending: true);
+      final response = await supabase
+          .from('sizes_master')
+          .select()
+          .eq('organization_id', orgId)
+          .order('ordine', ascending: true);
 
       return (response as List)
           .map((json) => SizeVariantModel.fromJson(json))

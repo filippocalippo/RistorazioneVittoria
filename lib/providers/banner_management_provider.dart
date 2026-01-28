@@ -13,20 +13,18 @@ part 'banner_management_provider.g.dart';
 Future<List<PromotionalBannerModel>> allBanners(Ref ref) async {
   final orgId = await ref.watch(currentOrganizationProvider.future);
 
+  // SECURITY: Require organization context to prevent cross-tenant data access
+  if (orgId == null) {
+    Logger.warning('No organization context for banner management', tag: 'BannerManagement');
+    return [];
+  }
+
   try {
-    dynamic response;
-    if (orgId != null) {
-      response = await SupabaseConfig.client
-          .from('promotional_banners')
-          .select()
-          .or('organization_id.eq.$orgId,organization_id.is.null')
-          .order('created_at', ascending: false);
-    } else {
-      response = await SupabaseConfig.client
-          .from('promotional_banners')
-          .select()
-          .order('created_at', ascending: false);
-    }
+    final response = await SupabaseConfig.client
+        .from('promotional_banners')
+        .select()
+        .eq('organization_id', orgId)
+        .order('created_at', ascending: false);
 
     return (response as List)
         .map((json) => PromotionalBannerModel.fromJson(json))

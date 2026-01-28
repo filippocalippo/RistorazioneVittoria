@@ -6,6 +6,7 @@ import '../core/utils/enums.dart';
 import '../core/utils/model_parsers.dart';
 import '../core/config/supabase_config.dart';
 import 'auth_provider.dart';
+import 'organization_provider.dart';
 import '../core/utils/logger.dart';
 
 part 'assign_delivery_provider.g.dart';
@@ -15,8 +16,20 @@ part 'assign_delivery_provider.g.dart';
 @riverpod
 Stream<List<OrderModel>> unassignedDeliveryOrders(Ref ref) {
   final user = ref.watch(authProvider).value;
+  final orgIdAsync = ref.watch(currentOrganizationProvider);
 
   if (user == null) {
+    return Stream.value([]);
+  }
+
+  // Wait for organization context
+  if (orgIdAsync.isLoading || !orgIdAsync.hasValue) {
+    return Stream.value([]);
+  }
+
+  final orgId = orgIdAsync.value;
+  if (orgId == null) {
+    Logger.warning('No organization context for unassigned delivery orders', tag: 'AssignDelivery');
     return Stream.value([]);
   }
 
@@ -24,7 +37,10 @@ Stream<List<OrderModel>> unassignedDeliveryOrders(Ref ref) {
   const watchedStatuses = [OrderStatus.ready];
 
   final realtime = RealtimeService();
-  return realtime.watchOrdersByStatus(statuses: watchedStatuses).map((orders) {
+  return realtime.watchOrdersByStatus(
+    statuses: watchedStatuses,
+    organizationId: orgId,
+  ).map((orders) {
     Logger.debug(
       'AssignDelivery stream update: ${orders.length} orders received',
       tag: 'AssignDelivery',
@@ -55,7 +71,20 @@ Stream<List<OrderModel>> unassignedDeliveryOrders(Ref ref) {
 @riverpod
 Stream<List<OrderModel>> deliveryManagementOrders(Ref ref, DateTime date) {
   final user = ref.watch(authProvider).value;
+  final orgIdAsync = ref.watch(currentOrganizationProvider);
+
   if (user == null) return Stream.value([]);
+
+  // Wait for organization context
+  if (orgIdAsync.isLoading || !orgIdAsync.hasValue) {
+    return Stream.value([]);
+  }
+
+  final orgId = orgIdAsync.value;
+  if (orgId == null) {
+    Logger.warning('No organization context for delivery management orders', tag: 'AssignDelivery');
+    return Stream.value([]);
+  }
 
   final isToday =
       date.year == DateTime.now().year &&
@@ -76,6 +105,7 @@ Stream<List<OrderModel>> deliveryManagementOrders(Ref ref, DateTime date) {
             OrderStatus.delivering,
             OrderStatus.completed,
           ],
+          organizationId: orgId,
           limit: 500, // High limit as requested
         )
         .map((orders) {
@@ -117,9 +147,11 @@ Stream<List<OrderModel>> deliveryManagementOrders(Ref ref, DateTime date) {
           tag: 'AssignDelivery',
         );
 
+        // SECURITY: Add organization filter to prevent cross-tenant data access
         final response = await SupabaseConfig.client
             .from('ordini')
             .select('*, ordini_items(*)')
+            .eq('organization_id', orgId)
             .eq('tipo', 'delivery')
             .gte('slot_prenotato_start', startOfDay.toUtc().toIso8601String())
             .lt('slot_prenotato_start', endOfDay.toUtc().toIso8601String())

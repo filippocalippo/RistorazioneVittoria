@@ -14,6 +14,7 @@ import '../../../providers/dashboard_analytics_provider.dart';
 import '../../../providers/reminders_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/widgets/error_boundary.dart';
 import '../widgets/premium_date_range_picker.dart';
 
 import 'package:rotante/features/security/widgets/security_guard.dart';
@@ -39,10 +40,11 @@ class _DashboardContent extends ConsumerWidget {
     final isDesktop = AppBreakpoints.isDesktop(context);
     final isTablet = AppBreakpoints.isTablet(context);
 
-    return Scaffold(
-
-      backgroundColor: AppColors.background,
-      body: RefreshIndicator(
+    return ErrorBoundaryWithLogger(
+      contextTag: 'DashboardScreen',
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: RefreshIndicator(
         onRefresh: () async {
           await ref.read(dashboardAnalyticsProvider.notifier).refresh();
         },
@@ -144,6 +146,7 @@ class _DashboardContent extends ConsumerWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

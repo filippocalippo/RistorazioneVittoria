@@ -82,23 +82,34 @@ final productAnalyticsProvider =
         // Get organization context for multi-tenant filtering
         final orgId = await ref.read(currentOrganizationProvider.future);
 
-        // Build base query
-        var query = supabase.from('ordini').select('*, ordini_items(*)');
-
-        // Multi-tenant filter: org-specific or global (null)
-        if (orgId != null) {
-          query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+        // SECURITY: Require organization context to prevent cross-tenant data access
+        if (orgId == null) {
+          Logger.warning('No organization context for product analytics', tag: 'ProductAnalytics');
+          return ProductAnalyticsData.empty();
         }
 
-        // Fetch orders with items for the selected period
-        final ordersResponse = await query
-            .or(
-              'and(slot_prenotato_start.gte.${startDate.toUtc().toIso8601String()},slot_prenotato_start.lte.${endDate.toUtc().toIso8601String()}),'
-              'and(slot_prenotato_start.is.null,created_at.gte.${startDate.toUtc().toIso8601String()},created_at.lte.${endDate.toUtc().toIso8601String()})',
-            )
+        // Fetch orders with items for the selected period (strict multi-tenant filter - no .is.null pattern)
+        // Filter for orders with scheduled slot OR orders without scheduled slot
+        final scheduledOrders = await supabase
+            .from('ordini')
+            .select('*, ordini_items(*)')
+            .eq('organization_id', orgId)
+            .gte('slot_prenotato_start', startDate.toUtc().toIso8601String())
+            .lte('slot_prenotato_start', endDate.toUtc().toIso8601String())
             .neq('stato', OrderStatus.cancelled.name);
 
-        final List<dynamic> ordersData = ordersResponse as List;
+        final unscheduledOrders = await supabase
+            .from('ordini')
+            .select('*, ordini_items(*)')
+            .eq('organization_id', orgId)
+            .filter('slot_prenotato_start', 'is', null)
+            .gte('created_at', startDate.toUtc().toIso8601String())
+            .lte('created_at', endDate.toUtc().toIso8601String())
+            .neq('stato', OrderStatus.cancelled.name);
+
+        final ordersResponse = [...scheduledOrders, ...unscheduledOrders];
+
+        final List<dynamic> ordersData = ordersResponse;
 
         // Accumulators
         final productMap = <String, _ProductAccumulator>{};

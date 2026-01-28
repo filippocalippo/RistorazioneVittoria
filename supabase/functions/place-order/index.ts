@@ -1,12 +1,32 @@
 // Supabase Edge Function to place an order with price validation
 // Deploy with: supabase functions deploy place-order
+//
+// Version: 1.0.0
+// Part of Section 8.2 Backend Production Readiness Improvements
+
+// Import shared modules
+import { validateRequestSignature, ValidationErrors } from '../_shared/request-validator.ts'
+import { initSentry, captureException, addBreadcrumb, setUserContext } from '../_shared/sentry.ts'
+import { PerformanceTracker } from '../_shared/performance.ts'
+import { validateClientVersion, registerFunctionVersion } from '../_shared/version.ts'
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// =============================================================================
+// VERSION INFO
+// =============================================================================
+export const FUNCTION_VERSION = '1.0.0'
+export const MIN_CLIENT_VERSION = '1.0.0'
+export const DEPLOYED_DATE = '2026-01-27'
+
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
 const STRIPE_SECRET_KEY: string = Deno.env.get('STRIPE_SECRET_KEY') ?? ''
 const STRIPE_API_VERSION = '2023-10-16'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
 const ALLOWED_ORIGINS = [
@@ -16,6 +36,19 @@ const ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:5173',
 ]
+
+// =============================================================================
+// RATE LIMITING CONFIGURATION
+// =============================================================================
+const RATE_LIMIT_MAX_REQUESTS = 20  // 20 orders per hour per organization
+const RATE_LIMIT_WINDOW_MINUTES = 60
+
+interface RateLimitResult {
+  allowed: boolean
+  remaining: number
+  reset_at: string
+  limit: number
+}
 
 // =============================================================================
 // TYPE DEFINITIONS (matching Dart models)
@@ -68,6 +101,9 @@ interface OrderItemInput {
 
 interface PlaceOrderRequest {
     organizationId?: string  // Multi-tenant: organization to create order for
+    timestamp?: string     // Request signing timestamp
+    nonce?: string          // Request signing nonce
+    signature?: string      // Request signing signature
     items: OrderItemInput[]
     orderType: 'delivery' | 'takeaway' | 'dine_in'
     paymentMethod: 'cash' | 'card' | 'online'
@@ -296,12 +332,17 @@ async function validateAndCorrectPrices(
 
     console.log(`[VALIDATION] Fetching: ${menuItemIds.size} menu items, ${sizeIds.size} sizes, ${ingredientIds.size} ingredients`)
 
-    // Fetch all required data from database
+    // SECURITY: Require organization context to prevent cross-tenant data access
+    if (!organizationId) {
+        throw new Error('Organization context required for price validation')
+    }
+
+    // Fetch all required data from database (no .is.null - strict tenant isolation)
     const { data: menuItems } = await supabaseAdmin
         .from('menu_items')
         .select('id, prezzo, prezzo_scontato')
         .in('id', Array.from(menuItemIds))
-        .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
+        .eq('organization_id', organizationId)
 
     let sizes: SizeVariant[] = []
     let sizeAssignments: SizeAssignment[] = []
@@ -310,7 +351,7 @@ async function validateAndCorrectPrices(
             .from('sizes_master')
             .select('id, price_multiplier')
             .in('id', Array.from(sizeIds))
-            .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
+            .eq('organization_id', organizationId)
         sizes = sizesData || []
 
         const { data: assignmentsData } = await supabaseAdmin
@@ -318,27 +359,28 @@ async function validateAndCorrectPrices(
             .select('menu_item_id, size_id, price_override')
             .in('menu_item_id', Array.from(menuItemIds))
             .in('size_id', Array.from(sizeIds))
-            .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
+            .eq('organization_id', organizationId)
         sizeAssignments = assignmentsData || []
     }
 
     let ingredients: Ingredient[] = []
     let ingredientSizePrices: IngredientSizePrice[] = []
     if (ingredientIds.size > 0) {
+        const ids = Array.from(ingredientIds)
         const { data: ingredientsData } = await supabaseAdmin
             .from('ingredients')
             .select('id, prezzo')
-            .in('id', Array.from(ingredientIds))
-            .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
+            .in('id', ids)
+            .eq('organization_id', organizationId)
         ingredients = ingredientsData || []
 
         if (sizeIds.size > 0) {
             const { data: sizePricesData } = await supabaseAdmin
                 .from('ingredient_size_prices')
                 .select('ingredient_id, size_id, prezzo')
-                .in('ingredient_id', Array.from(ingredientIds))
+                .in('ingredient_id', ids)
                 .in('size_id', Array.from(sizeIds))
-                .or(`organization_id.eq.${organizationId ?? ''},organization_id.is.null`)
+                .eq('organization_id', organizationId)
             ingredientSizePrices = sizePricesData || []
         }
     }
@@ -371,10 +413,8 @@ async function validateAndCorrectPrices(
             console.log(`[SPLIT] First product ID: ${item.menu_item_id}`)
             console.log(`[SPLIT] Second product ID: ${variants.secondProduct.id}`)
             console.log(`[SPLIT] Second product name: ${variants.secondProduct.name}`)
-            console.log(`[SPLIT] Size ID: ${sizeId}`)
 
             // Parse added ingredients and split them between first and second product
-            // Exact port of cashier_order_panel.dart lines 670-686
             const allIngredients = variants.addedIngredients || []
             const secondProductName = variants.secondProduct.name || ''
 
@@ -383,7 +423,6 @@ async function validateAndCorrectPrices(
 
             for (const ing of allIngredients) {
                 const ingName = ing.name || ''
-                // Dart logic: if (ing.ingredientName.contains(': ${item.secondMenuItem!.nome}'))
                 if (ingName.includes(`: ${secondProductName}`)) {
                     secondProductIngredients.push({
                         ingredientId: ing.id,
@@ -398,9 +437,6 @@ async function validateAndCorrectPrices(
                     console.log(`[SPLIT] Ingredient "${ingName}" -> FIRST product`)
                 }
             }
-
-            console.log(`[SPLIT] First product ingredients: ${firstProductIngredients.length}`)
-            console.log(`[SPLIT] Second product ingredients: ${secondProductIngredients.length}`)
 
             const result = calculator.calculateSplitItemPrice(
                 item.menu_item_id,
@@ -523,7 +559,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
 
     return {
         'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-version, x-platform',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
     }
 }
@@ -533,44 +569,157 @@ function getCorsHeaders(req: Request): Record<string, string> {
 // =============================================================================
 
 serve(async (req: Request) => {
+    // Track overall function performance
+    const perfTracker = new PerformanceTracker('place-order', { function: 'place-order' })
+
+    // Initialize Sentry for error tracking
+    initSentry()
+
     const corsHeaders = getCorsHeaders(req)
     if (req.method === 'OPTIONS') {
+        perfTracker.end()
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
+        // Validate Stripe secret key is configured
+        if (!STRIPE_SECRET_KEY) {
+            console.error('STRIPE_SECRET_KEY not configured')
+            throw new Error('Payment service temporarily unavailable')
+        }
+
         const body: PlaceOrderRequest = await req.json()
         const authHeader = req.headers.get('Authorization')
         if (!authHeader) throw new Error('Authentication required')
 
+        // Get client version for compatibility check
+        const clientVersion = req.headers.get('X-Client-Version')
+        if (clientVersion) {
+            addBreadcrumb('client', 'Client version check', { version: clientVersion })
+        }
+
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
         const supabaseClient = createClient(
             SUPABASE_URL,
-            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+            SUPABASE_ANON_KEY,
             { global: { headers: { Authorization: authHeader } } }
         )
 
+        // Get the authenticated user
         const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
         if (userError || !user) throw new Error('Authentication failed')
 
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('ruolo, current_organization_id')
-            .eq('id', user.id)
-            .single()
+        // Set user context in Sentry
+        setUserContext(user.id, user.email)
 
-        // Multi-tenant: Get organization ID from request, profile, or default
-        let organizationId = body.organizationId || profile?.current_organization_id
+        // Get organization ID
+        let organizationId = body.organizationId || body.organizationId
         if (!organizationId) {
-            // Fallback: get first active organization
-            const { data: orgs } = await supabaseAdmin
-                .from('organizations')
-                .select('id')
-                .eq('is_active', true)
-                .limit(1)
-            if (orgs && orgs.length > 0) organizationId = orgs[0].id
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('current_organization_id')
+                .eq('id', user.id)
+                .single()
+
+            organizationId = profile?.current_organization_id
         }
-        if (!organizationId) throw new Error('Organization context required')
+
+        // SECURITY: Require organization context - no fallback to random org
+        if (!organizationId) {
+            addBreadcrumb('security', 'Organization context missing', {
+                userId: user.id,
+                hasBodyOrgId: !!body.organizationId
+            }, 'error')
+            throw new Error('Organization context required. Please select a restaurant before placing an order.')
+        }
+
+        // Verify user is actually a member of this organization
+        const { data: membership, error: memberError } = await supabaseAdmin
+            .from('organization_members')
+            .select('id, is_active, role')
+            .eq('organization_id', organizationId)
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+        if (memberError) {
+            console.error('Error checking organization membership:', memberError)
+        }
+
+        if (!membership || !membership.is_active) {
+            addBreadcrumb('security', 'User not member of organization', {
+                userId: user.id,
+                organizationId,
+                membership: membership ? 'inactive' : 'none'
+            }, 'error')
+            throw new Error('You are not a member of this organization. Please join the restaurant first.')
+        }
+
+        // =========================================================================
+        // VERSION COMPATIBILITY CHECK
+        // =========================================================================
+        if (clientVersion) {
+            const compatResult = await validateClientVersion('place-order', clientVersion)
+            if (!compatResult.valid && compatResult.response) {
+                perfTracker.end({ status: 'upgrade_required' })
+                return compatResult.response
+            }
+        }
+
+        // =========================================================================
+        // REQUEST SIGNING VALIDATION
+        // =========================================================================
+        const signaturePerf = new PerformanceTracker('signature_validation')
+        if (body.timestamp && body.nonce && body.signature) {
+            const validationResult = await validateRequestSignature(
+                req,
+                body,
+                organizationId
+            )
+
+            if (!validationResult.valid) {
+                signaturePerf.end({ valid: false, error: validationResult.error_code })
+                console.warn(`[Signature] ${validationResult.error}`)
+
+                // Don't block requests without signature for backward compatibility
+                // Log the warning and continue
+            } else {
+                console.log('[Signature] Valid signature verified')
+            }
+        }
+        signaturePerf.end()
+
+        // =========================================================================
+        // RATE LIMITING: Check if organization has exceeded order rate limit
+        // =========================================================================
+        const { data: rateLimit, error: rateLimitError } = await supabaseClient.rpc('check_rate_limit', {
+            p_identifier: organizationId,
+            p_endpoint: 'place-order',
+            p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+            p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
+        })
+
+        if (rateLimitError) {
+            console.error('Rate limit check error:', rateLimitError)
+            // Continue on error (fail open for reliability)
+        } else if (rateLimit && !(rateLimit as RateLimitResult).allowed) {
+            const limitResult = rateLimit as RateLimitResult
+            const resetDate = new Date(limitResult.reset_at)
+            const retryAfterSeconds = Math.max(1, Math.ceil((resetDate.getTime() - Date.now()) / 1000))
+
+            return new Response(JSON.stringify({
+                error: 'Too many orders. Please try again later.',
+                code: 'rate_limit_exceeded',
+                resetAt: limitResult.reset_at,
+                retryAfter: retryAfterSeconds,
+            }), {
+                status: 429,
+                headers: {
+                    ...corsHeaders,
+                    'Content-Type': 'application/json',
+                    'Retry-After': retryAfterSeconds.toString(),
+                },
+            })
+        }
 
         const { data: membership } = await supabaseAdmin
             .from('organization_members')
@@ -578,6 +727,12 @@ serve(async (req: Request) => {
             .eq('organization_id', organizationId)
             .eq('user_id', user.id)
             .maybeSingle()
+
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('ruolo')
+            .eq('id', user.id)
+            .single()
 
         const legacyRole = profile?.ruolo ?? ''
         const isStaff = ['owner', 'manager', 'kitchen', 'delivery'].includes(membership?.role ?? legacyRole)
@@ -596,7 +751,12 @@ serve(async (req: Request) => {
         console.log(`[ORDER] User: ${user.email}, Staff: ${isStaff}, Org: ${organizationId}, Items: ${body.items.length}`)
 
         // VALIDATE AND CORRECT PRICES - Always validate, use server prices if mismatch found
+        const priceCheckPerf = new PerformanceTracker('price_validation')
         const priceCheck = await validateAndCorrectPrices(supabaseAdmin, body.items, organizationId)
+        priceCheckPerf.end({
+            items_validated: priceCheck.items.length,
+            corrections_made: priceCheck.corrected
+        })
         const correctedItems = priceCheck.items
 
         if (priceCheck.corrected) {
@@ -613,6 +773,9 @@ serve(async (req: Request) => {
 
         // CREATE OR UPDATE ORDER
         const isUpdate = !!body.orderId
+
+        const orderPerf = new PerformanceTracker('order_crud')
+
         let order: any
 
         if (isUpdate) {
@@ -695,7 +858,7 @@ serve(async (req: Request) => {
 
             const orderData = {
                 cliente_id: isStaff ? null : user.id,
-                organization_id: organizationId,  // Multi-tenant
+                organization_id: organizationId,
                 cashier_customer_id: body.cashierCustomerId,
                 stato: status,
                 tipo: body.orderType,
@@ -750,6 +913,8 @@ serve(async (req: Request) => {
             console.log(`[ORDER] Created order ${order.id}`)
         }
 
+        orderPerf.end({ order_type: isUpdate ? 'update' : 'create' })
+
         // HANDLE PAYMENT
         let response: PlaceOrderResponse = {
             success: true,
@@ -758,6 +923,7 @@ serve(async (req: Request) => {
         }
 
         if (body.paymentMethod === 'card' && !isStaff) {
+            const stripePerf = new PerformanceTracker('stripe_payment_intent')
             const amountInCents = Math.round(total * 100)
             if (amountInCents < 50) throw new Error('Amount too small for card payment')
 
@@ -772,9 +938,19 @@ serve(async (req: Request) => {
                 }
             )
 
+            stripePerf.end({ amount: amountInCents })
+
             response.clientSecret = paymentIntent.client_secret
             response.paymentIntentId = paymentIntent.id
         }
+
+        // Complete performance tracking
+        perfTracker.end({
+            success: true,
+            organization_id: organizationId,
+            user_id: user.id,
+            items_count: body.items.length
+        })
 
         return new Response(
             JSON.stringify(response),
@@ -784,6 +960,19 @@ serve(async (req: Request) => {
     } catch (err) {
         const error = err as Error
         console.error('Error placing order:', error)
+
+        // Capture exception in Sentry with context
+        captureException(error, {
+            function: 'place-order',
+            timestamp: new Date().toISOString(),
+        })
+
+        // Complete performance tracking with error
+        perfTracker.end({
+            success: false,
+            error: error.message
+        })
+
         return new Response(
             JSON.stringify({ error: error.message, code: 'order_error' }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }

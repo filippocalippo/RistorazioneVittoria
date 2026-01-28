@@ -32,9 +32,8 @@ class _SecurityGuardState extends ConsumerState<SecurityGuard> {
 
   @override
   void dispose() {
-    // Also lock on dispose as a safety net for any edge cases
-    // Lock BEFORE super.dispose() to ensure ref is still valid
-    ref.read(securityStateProvider.notifier).lock();
+    // No longer calling ref.read here to avoid "ref used after dispose" errors.
+    // Locking is handled in initState when entering the guarded area.
     super.dispose();
   }
 
@@ -44,11 +43,7 @@ class _SecurityGuardState extends ConsumerState<SecurityGuard> {
 
     // If still loading security status, show nothing or loading
     if (securityState.isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // 1. Setup Required (First time or after reset)
@@ -68,10 +63,8 @@ class _SecurityGuardState extends ConsumerState<SecurityGuard> {
           onCancel: () => setState(() => _showRecovery = false),
         );
       }
-      
-      return LockScreen(
-        onForgot: () => setState(() => _showRecovery = true),
-      );
+
+      return LockScreen(onForgot: () => setState(() => _showRecovery = true));
     }
 
     // 3. Unlocked - Show Content

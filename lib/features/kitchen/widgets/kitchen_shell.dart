@@ -9,6 +9,7 @@ import '../../../core/widgets/manager_quick_switch.dart';
 import '../../../core/widgets/pizzeria_logo.dart';
 import '../../../core/utils/enums.dart';
 import '../../../core/navigation/back_navigation_handler.dart';
+import '../../../core/widgets/offline_banner.dart';
 
 /// Kitchen app shell with simple navigation
 class KitchenShell extends ConsumerStatefulWidget {
@@ -51,21 +52,28 @@ class _KitchenShellState extends ConsumerState<KitchenShell> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
-          child: Stack(
+          child: Column(
             children: [
-              Column(
-                children: [
-                  // Header bar
-                  _buildHeader(context, ref, user, isDesktop),
+              const OfflineBanner(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        // Header bar
+                        _buildHeader(context, ref, user, isDesktop),
 
-                  // Main content
-                  Expanded(child: widget.child),
-                ],
-              ),
-              const Positioned(
-                bottom: 0,
-                right: 0,
-                child: ManagerQuickSwitch(),
+                        // Main content
+                        Expanded(child: widget.child),
+                      ],
+                    ),
+                    const Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: ManagerQuickSwitch(),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

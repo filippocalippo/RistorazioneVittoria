@@ -21,16 +21,17 @@ class Ingredients extends _$Ingredients {
       // Get current organization ID
       final orgId = await ref.read(currentOrganizationProvider.future);
 
-      // Fetch ingredients with their size prices
-      var query = supabase
-          .from('ingredients')
-          .select('*, ingredient_size_prices(*)');
-
-      // Multi-tenant: filter by organization
-      if (orgId != null) {
-        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        throw Exception('Organization context required');
       }
-      final response = await query.order('ordine', ascending: true);
+
+      // Fetch ingredients with their size prices (strict multi-tenant filter)
+      final response = await supabase
+          .from('ingredients')
+          .select('*, ingredient_size_prices(*)')
+          .eq('organization_id', orgId)
+          .order('ordine', ascending: true);
 
       return (response as List)
           .map((json) => IngredientModel.fromJson(json))

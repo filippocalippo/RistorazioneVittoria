@@ -44,6 +44,17 @@ class EnvConfig {
   static String get stripePublishableKey =>
       _read('STRIPE_PUBLISHABLE_KEY') ?? '';
 
+  /// Domain used for join links (QR/deep links)
+  static String get joinDomain => _read('JOIN_DOMAIN') ?? 'rotante.app';
+
+  /// Sentry DSN for Flutter error tracking
+  static String get sentryDsnFlutter =>
+      _read('SENTRY_DSN_FLUTTER') ?? '';
+
+  /// Sentry environment (production/staging/development)
+  static String get sentryEnvironment =>
+      _read('SENTRY_ENVIRONMENT') ?? 'production';
+
   /// Check if running on Windows
   static bool get isWindows {
     try {
@@ -69,7 +80,13 @@ class EnvConfig {
       'Supabase Key: ${supabaseAnonKey.isNotEmpty ? "✓" : "MISSING"}',
       tag: 'EnvConfig',
     );
+    Logger.info(
+      'Sentry DSN: ${sentryDsnFlutter.isNotEmpty ? "✓" : "NOT CONFIGURED"}',
+      tag: 'EnvConfig',
+    );
+    Logger.info('Environment: $sentryEnvironment', tag: 'EnvConfig');
     Logger.info('Valid: $isValid', tag: 'EnvConfig');
+    Logger.info('Join domain: $joinDomain', tag: 'EnvConfig');
     Logger.info('========================', tag: 'EnvConfig');
   }
 }

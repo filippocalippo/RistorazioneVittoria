@@ -15,6 +15,7 @@ import '../../../DesignSystem/design_tokens.dart';
 import '../../../core/services/order_price_calculator.dart';
 import '../../../core/services/stripe_service.dart';
 import '../../../core/models/settings/pizzeria_settings_model.dart';
+import '../../../core/widgets/error_boundary.dart';
 
 class CheckoutScreenNew extends ConsumerStatefulWidget {
   final OrderType orderType;
@@ -128,30 +129,33 @@ class _CheckoutScreenNewState extends ConsumerState<CheckoutScreenNew> {
     final minimumOrder = settingsAsync.value?.orderManagement.ordineMinimo ?? 10.0;
     final isMinimumMet = subtotal >= minimumOrder;
 
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: Padding(
-        padding: EdgeInsets.only(top: topPadding),
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDeliveryInfoCard(),
-                    const SizedBox(height: AppSpacing.xxl),
-                    _buildPaymentSection(),
-                    const SizedBox(height: AppSpacing.xxl),
-                    _buildOrderSummary(cart, subtotal, deliveryCost, total),
-                    const SizedBox(height: 120),
-                  ],
+    return ErrorBoundaryWithLogger(
+      contextTag: 'CheckoutScreenNew',
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        body: Padding(
+          padding: EdgeInsets.only(top: topPadding),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDeliveryInfoCard(),
+                      const SizedBox(height: AppSpacing.xxl),
+                      _buildPaymentSection(),
+                      const SizedBox(height: AppSpacing.xxl),
+                      _buildOrderSummary(cart, subtotal, deliveryCost, total),
+                      const SizedBox(height: 120),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _buildBottomBar(total, isMinimumMet, minimumOrder),
-          ],
+              _buildBottomBar(total, isMinimumMet, minimumOrder),
+            ],
+          ),
         ),
       ),
     );

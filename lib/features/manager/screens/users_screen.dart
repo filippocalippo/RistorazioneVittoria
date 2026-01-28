@@ -693,7 +693,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: users.length,
-            separatorBuilder: (_, __) =>
+            separatorBuilder: (_, _) =>
                 const Divider(height: 1, color: AppColors.border),
             itemBuilder: (context, index) {
               final user = users[index];
@@ -921,7 +921,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: customers.length,
-            separatorBuilder: (_, __) =>
+            separatorBuilder: (_, _) =>
                 const Divider(height: 1, color: AppColors.border),
             itemBuilder: (context, index) {
               final customer = customers[index];

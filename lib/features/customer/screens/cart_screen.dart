@@ -15,6 +15,7 @@ import '../../../core/utils/constants.dart';
 import '../../../DesignSystem/design_tokens.dart';
 import '../../../features/auth/auth_utils.dart';
 import '../../../core/widgets/cached_network_image.dart';
+import '../../../core/widgets/error_boundary.dart';
 import '../widgets/product_customization_modal.dart';
 import '../widgets/dual_stack_split_modal.dart';
 import '../../../providers/sizes_provider.dart';
@@ -58,27 +59,33 @@ class CartScreenNew extends ConsumerWidget {
         : 0.0;
 
     if (isEmpty) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        body: Padding(
-          padding: EdgeInsets.only(top: topPadding),
-          child: _buildEmptyState(context),
+      return ErrorBoundaryWithLogger(
+        contextTag: 'CartScreenNew.Empty',
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          body: Padding(
+            padding: EdgeInsets.only(top: topPadding),
+            child: _buildEmptyState(context),
+          ),
         ),
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Padding(
-        padding: EdgeInsets.only(top: topPadding),
-        child: Column(
-          children: [
-            Expanded(
-              child: isDesktop
-                  ? _buildDesktopLayout(context, ref, cart, subtotal)
-                  : _buildMobileLayout(context, ref, cart, subtotal),
-            ),
-          ],
+    return ErrorBoundaryWithLogger(
+      contextTag: 'CartScreenNew',
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Padding(
+          padding: EdgeInsets.only(top: topPadding),
+          child: Column(
+            children: [
+              Expanded(
+                child: isDesktop
+                    ? _buildDesktopLayout(context, ref, cart, subtotal)
+                    : _buildMobileLayout(context, ref, cart, subtotal),
+              ),
+            ],
+          ),
         ),
       ),
     );

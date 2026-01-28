@@ -5,10 +5,12 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   auto_updater_windows
+  connectivity_plus
   file_selector_windows
   firebase_core
   flutter_secure_storage_windows
   geolocator_windows
+  sentry_flutter
   share_plus
   url_launcher_windows
 )

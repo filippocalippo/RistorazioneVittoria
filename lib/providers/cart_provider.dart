@@ -10,6 +10,8 @@ import '../core/models/ingredient_model.dart';
 import '../core/models/product_configuration_model.dart';
 import '../core/services/order_price_calculator.dart';
 import '../core/services/order_price_models.dart';
+import '../core/utils/logger.dart';
+import 'organization_provider.dart';
 
 part 'cart_provider.g.dart';
 
@@ -34,18 +36,23 @@ class CartItem {
 
 @riverpod
 class Cart extends _$Cart {
-  static const String _storageKey = 'cart_items';
+  /// Get organization-scoped storage key
+  String _getStorageKey(String? orgId) {
+    return orgId != null ? 'cart_items_$orgId' : 'cart_items';
+  }
 
   @override
   List<CartItem> build() {
-    _loadFromStorage();
+    // Get current org ID to scope storage
+    final orgId = ref.read(currentOrganizationProvider).value;
+    _loadFromStorage(orgId);
     return [];
   }
 
-  Future<void> _loadFromStorage() async {
+  Future<void> _loadFromStorage(String? orgId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cartJson = prefs.getString(_storageKey);
+      final cartJson = prefs.getString(_getStorageKey(orgId));
 
       if (cartJson != null) {
         final List<dynamic> decoded = json.decode(cartJson);
@@ -66,6 +73,7 @@ class Cart extends _$Cart {
 
   Future<void> _saveToStorage() async {
     try {
+      final orgId = ref.read(currentOrganizationProvider).value;
       final prefs = await SharedPreferences.getInstance();
       final cartData = state
           .map(
@@ -76,10 +84,23 @@ class Cart extends _$Cart {
           )
           .toList();
 
-      await prefs.setString(_storageKey, json.encode(cartData));
+      await prefs.setString(_getStorageKey(orgId), json.encode(cartData));
     } catch (e) {
       // Silently fail - cart will still work in memory
     }
+  }
+
+  /// Clear cart for organization switch.
+  /// Called when user switches to a different organization.
+  Future<void> clearForOrganization(String? newOrgId) async {
+    state = [];
+    final prefs = await SharedPreferences.getInstance();
+
+    // Clear legacy storage key (cleanup from before org-scoped cart)
+    await prefs.remove('cart_items');
+
+    // The new org's cart will load on next build via _loadFromStorage
+    Logger.debug('Cart cleared for org switch to: $newOrgId', tag: 'Cart');
   }
 
   /// Add item without customizations (backward compatibility)

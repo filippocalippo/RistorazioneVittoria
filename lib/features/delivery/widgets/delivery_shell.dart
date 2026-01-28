@@ -12,6 +12,7 @@ import '../screens/delivery_global_map_screen.dart';
 import '../screens/delivery_active_screen.dart';
 import '../../../core/navigation/back_navigation_handler.dart';
 import '../../../core/widgets/manager_quick_switch.dart';
+import '../../../core/widgets/offline_banner.dart';
 
 /// Delivery view modes
 enum DeliveryView { queue, map, active }
@@ -114,15 +115,22 @@ class _DeliveryShellState extends ConsumerState<DeliveryShell> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
-          child: Stack(
+          child: Column(
             children: [
-              currentScreen,
-              if (currentView != DeliveryView.active)
-                const Positioned(
-                  bottom: 0,
-                  left: 0,
-                  child: ManagerQuickSwitch(),
+              const OfflineBanner(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    currentScreen,
+                    if (currentView != DeliveryView.active)
+                      const Positioned(
+                        bottom: 0,
+                        left: 0,
+                        child: ManagerQuickSwitch(),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),

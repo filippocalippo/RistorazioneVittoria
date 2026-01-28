@@ -10,6 +10,7 @@ import 'app_navigation.dart';
 import 'manager_quick_switch.dart';
 import 'mobile_top_bar.dart';
 import '../navigation/back_navigation_handler.dart';
+import 'offline_banner.dart';
 
 /// Main app shell that provides consistent navigation across screens
 class AppShell extends ConsumerWidget {
@@ -84,14 +85,30 @@ class AppShell extends ConsumerWidget {
                 backgroundColor: isMobile
                     ? AppColors.surface
                     : AppColors.background,
-                body: SafeArea(top: false, child: content),
+                body: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      const OfflineBanner(),
+                      Expanded(child: content),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         );
       }
       return BackNavigationHandler(
-        child: SafeArea(top: false, child: content),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const OfflineBanner(),
+              Expanded(child: content),
+            ],
+          ),
+        ),
       );
     }
 
@@ -115,40 +132,47 @@ class AppShell extends ConsumerWidget {
                 top: false, // MobileTopBar handles its own SafeArea
                 bottom:
                     false, // We'll handle bottom padding manually for floating nav
-                child: Stack(
+                child: Column(
                   children: [
-                    Stack(
-                      children: [
-                        // Main content with optional width constraint
-                        // Wrapped in Padding to account for system nav buttons
-                        Positioned.fill(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              bottom: MediaQuery.of(context).padding.bottom,
+                    const OfflineBanner(),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Stack(
+                            children: [
+                              // Main content with optional width constraint
+                              // Wrapped in Padding to account for system nav buttons
+                              Positioned.fill(
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: MediaQuery.of(context).padding.bottom,
+                                  ),
+                                  child: content,
+                                ),
+                              ),
+
+                              // Mobile top bar for customer screens
+                              if (isMobile && showMobileTopBar)
+                                const Positioned(
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: MobileTopBar(),
+                                ),
+                            ],
+                          ),
+
+                          // Floating bottom navigation for mobile - show cart and menu to all users, but hide on cart/checkout
+                          if (isMobile && !hideBottomNav)
+                            const Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: MobileBottomNav(),
                             ),
-                            child: content,
-                          ),
-                        ),
-
-                        // Mobile top bar for customer screens
-                        if (isMobile && showMobileTopBar)
-                          const Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            child: MobileTopBar(),
-                          ),
-                      ],
-                    ),
-
-                    // Floating bottom navigation for mobile - show cart and menu to all users, but hide on cart/checkout
-                    if (isMobile && !hideBottomNav)
-                      const Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: MobileBottomNav(),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -175,53 +199,60 @@ class AppShell extends ConsumerWidget {
               top: false, // MobileTopBar handles its own SafeArea
               bottom:
                   false, // We'll handle bottom padding manually for floating nav
-              child: Stack(
+              child: Column(
                 children: [
-                  Stack(
-                    children: [
-                      // Main content
-                      Positioned.fill(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            bottom: MediaQuery.of(context).padding.bottom,
+                  const OfflineBanner(),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Stack(
+                          children: [
+                            // Main content
+                            Positioned.fill(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: MediaQuery.of(context).padding.bottom,
+                                ),
+                                child: isDesktop && isUserAuthenticated
+                                    ? Column(
+                                        children: [
+                                          const DesktopNavBar(),
+                                          Expanded(child: content),
+                                        ],
+                                      )
+                                    : content,
+                              ),
+                            ),
+
+                            // Mobile top bar for customer screens
+                            if (isMobile && showMobileTopBar)
+                              const Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: MobileTopBar(),
+                              ),
+                          ],
+                        ),
+
+                        // Floating bottom navigation for mobile (positioned on top of content)
+                        // This already has SafeArea inside it
+                        // Show for all users (cart + menu), but hide on cart/checkout
+                        if (isMobile && !hideBottomNav)
+                          const Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: MobileBottomNav(),
                           ),
-                          child: isDesktop && isUserAuthenticated
-                              ? Column(
-                                  children: [
-                                    const DesktopNavBar(),
-                                    Expanded(child: content),
-                                  ],
-                                )
-                              : content,
-                        ),
-                      ),
 
-                      // Mobile top bar for customer screens
-                      if (isMobile && showMobileTopBar)
                         const Positioned(
-                          top: 0,
+                          bottom: 0,
                           left: 0,
-                          right: 0,
-                          child: MobileTopBar(),
+                          child: ManagerQuickSwitch(),
                         ),
-                    ],
-                  ),
-
-                  // Floating bottom navigation for mobile (positioned on top of content)
-                  // This already has SafeArea inside it
-                  // Show for all users (cart + menu), but hide on cart/checkout
-                  if (isMobile && !hideBottomNav)
-                    const Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: MobileBottomNav(),
+                      ],
                     ),
-
-                  const Positioned(
-                    bottom: 0,
-                    left: 0,
-                    child: ManagerQuickSwitch(),
                   ),
                 ],
               ),

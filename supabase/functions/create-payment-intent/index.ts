@@ -5,6 +5,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// =============================================================================
+// SECTION 8.2: Backend Production Readiness
+// =============================================================================
+
+// Version management
+export const FUNCTION_VERSION = '1.0.0'
+export const MIN_CLIENT_VERSION = '1.0.0'
+export const DEPLOYED_DATE = '2026-01-27'
+
+// Shared module imports
+import { initSentry, captureException, setUserContext, addBreadcrumb } from '../_shared/sentry.ts'
+import { PerformanceTracker } from '../_shared/performance.ts'
+import { validateClientVersion } from '../_shared/version.ts'
+import { validateRequestSignature } from '../_shared/request-validator.ts'
+
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
+
 const STRIPE_SECRET_KEY: string = Deno.env.get('STRIPE_SECRET_KEY') ?? ''
 const STRIPE_API_VERSION = '2023-10-16'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
@@ -18,6 +37,19 @@ const ALLOWED_ORIGINS = [
     'http://localhost:3000',           // Web dev server
     'http://localhost:5173',           // Vite dev server
 ]
+
+// =============================================================================
+// RATE LIMITING CONFIGURATION
+// =============================================================================
+const RATE_LIMIT_MAX_REQUESTS = 10  // 10 payment intents per hour per user
+const RATE_LIMIT_WINDOW_MINUTES = 60
+
+interface RateLimitResult {
+  allowed: boolean
+  remaining: number
+  reset_at: string
+  limit: number
+}
 
 // SECURITY: Validation constants
 const MAX_QUANTITY_PER_ITEM = 100
@@ -52,6 +84,11 @@ interface PaymentIntentRequest {
     currency?: string
     customerEmail?: string
     metadata?: Record<string, string>
+
+    // Section 8.2: Request signing fields
+    timestamp?: string
+    nonce?: string
+    signature?: string
 }
 
 interface PaymentIntentResponse {
@@ -86,6 +123,7 @@ async function createPaymentIntent(
         }
     }
 
+    const stripePerf = new PerformanceTracker('stripe_api_call', { endpoint: 'create_payment_intent' })
     const response = await fetch('https://api.stripe.com/v1/payment_intents', {
         method: 'POST',
         headers: {
@@ -95,10 +133,12 @@ async function createPaymentIntent(
         },
         body: params.toString(),
     })
+    stripePerf.end()
 
     if (!response.ok) {
         const error = await response.json()
         console.error('Stripe API error:', error)
+        captureException(new Error('Stripe API error'), { error, function: 'create-payment-intent' })
         throw new Error('Payment processing failed. Please try again.')
     }
 
@@ -121,7 +161,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
 
     return {
         'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-version, x-platform',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
     }
 }
@@ -182,41 +222,51 @@ async function calculateDeliveryFee(
     longitude?: number,
     organizationId?: string
 ): Promise<number> {
+    const deliveryPerf = new PerformanceTracker('calculate_delivery_fee')
+
     // No delivery fee for non-delivery orders
     if (orderType !== 'delivery') {
+        deliveryPerf.end({ orderType, reason: 'not_delivery' })
         return 0
     }
 
     // Fetch delivery configuration
+    const configPerf = new PerformanceTracker('db_query', { table: 'delivery_configuration' })
     const { data: config } = await supabaseAdmin
         .from('delivery_configuration')
         .select('*')
         .eq('organization_id', organizationId ?? '')
         .limit(1)
         .maybeSingle()
+    configPerf.end()
 
     if (!config) {
         // Default delivery fee if no config
+        deliveryPerf.end({ orderType, reason: 'no_config' })
         return 3.00
     }
 
     // Check Free Delivery Threshold
     if (config.consegna_gratuita_sopra && config.consegna_gratuita_sopra > 0) {
         if (subtotal >= config.consegna_gratuita_sopra) {
+            deliveryPerf.end({ orderType, reason: 'free_threshold' })
             return 0.0
         }
     }
 
     // Fetch pizzeria coordinates
+    const pizzeriaPerf = new PerformanceTracker('db_query', { table: 'business_rules' })
     const { data: pizzeria } = await supabaseAdmin
         .from('business_rules')
         .select('latitude, longitude')
         .eq('organization_id', organizationId ?? '')
         .limit(1)
         .maybeSingle()
+    pizzeriaPerf.end()
 
     // If no coordinates provided or pizzeria location unknown, use base fee
     if (!latitude || !longitude || !pizzeria?.latitude || !pizzeria?.longitude) {
+        deliveryPerf.end({ orderType, reason: 'no_coordinates' })
         return config.costo_consegna_base ?? 3.00
     }
 
@@ -238,10 +288,12 @@ async function calculateDeliveryFee(
 
         for (const tier of tiers) {
             if (distance <= tier.km) {
+                deliveryPerf.end({ orderType, method: 'radial', distance: distance.toFixed(2) })
                 return tier.price
             }
         }
         // Outside max radius
+        deliveryPerf.end({ orderType, method: 'radial', distance: distance.toFixed(2), reason: 'outside_radius' })
         return config.prezzo_fuori_raggio ?? config.costo_consegna_base ?? 3.00
     }
 
@@ -249,13 +301,20 @@ async function calculateDeliveryFee(
     if (config.tipo_calcolo_consegna === 'per_km') {
         const baseFee = config.costo_consegna_base ?? 3.00
         const perKmFee = config.costo_consegna_per_km ?? 0.50
-        return baseFee + (distance * perKmFee)
+        const fee = baseFee + (distance * perKmFee)
+        deliveryPerf.end({ orderType, method: 'per_km', distance: distance.toFixed(2) })
+        return fee
     }
 
+    deliveryPerf.end({ orderType, method: 'base' })
     return config.costo_consegna_base ?? 3.00
 }
 
 serve(async (req: Request) => {
+    // Section 8.2: Initialize Sentry
+    initSentry()
+
+    const requestPerf = new PerformanceTracker('create-payment-intent-total')
     const corsHeaders = getCorsHeaders(req)
 
     // Handle CORS preflight
@@ -263,10 +322,28 @@ serve(async (req: Request) => {
         return new Response('ok', { headers: corsHeaders })
     }
 
+    // Section 8.2: Client version compatibility check
+    const clientVersion = req.headers.get('x-client-version')
+    if (clientVersion) {
+        const versionCheck = await validateClientVersion('create-payment-intent', clientVersion)
+        if (!versionCheck.compatible) {
+            return new Response(JSON.stringify({
+                error: 'Client version outdated',
+                code: 'version_mismatch',
+                currentVersion: FUNCTION_VERSION,
+                minVersion: MIN_CLIENT_VERSION,
+            }), {
+                status: 426,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+        }
+    }
+
     try {
         // Validate Stripe secret key is configured
         if (!STRIPE_SECRET_KEY) {
             console.error('STRIPE_SECRET_KEY not configured')
+            captureException(new Error('STRIPE_SECRET_KEY not configured'), { function: 'create-payment-intent' })
             throw new Error('Payment service temporarily unavailable')
         }
 
@@ -289,12 +366,54 @@ serve(async (req: Request) => {
         )
 
         // Get the authenticated user
+        const authPerf = new PerformanceTracker('auth_verification')
         const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+        authPerf.end()
+
         if (userError || !user) {
             throw new Error('Authentication failed')
         }
 
+        // Section 8.2: Set user context for Sentry
+        setUserContext(user.id, user.email)
+
+        // =========================================================================
+        // RATE LIMITING: Check if user has exceeded payment intent rate limit
+        // =========================================================================
+        const rateLimitPerf = new PerformanceTracker('rate_limit_check')
+        const { data: rateLimit, error: rateLimitError } = await supabaseClient.rpc('check_rate_limit', {
+            p_identifier: user.id,
+            p_endpoint: 'create-payment-intent',
+            p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+            p_window_minutes: RATE_LIMIT_WINDOW_MINUTES,
+        })
+        rateLimitPerf.end()
+
+        if (rateLimitError) {
+            console.error('Rate limit check error:', rateLimitError)
+            addBreadcrumb('rate_limit', 'Rate limit check failed (continuing)', { error: rateLimitError.message }, 'warning')
+        } else if (rateLimit && !(rateLimit as RateLimitResult).allowed) {
+            const limitResult = rateLimit as RateLimitResult
+            const resetDate = new Date(limitResult.reset_at)
+            const retryAfterSeconds = Math.max(1, Math.ceil((resetDate.getTime() - Date.now()) / 1000))
+
+            return new Response(JSON.stringify({
+                error: 'Too many payment attempts. Please try again later.',
+                code: 'rate_limit_exceeded',
+                resetAt: limitResult.reset_at,
+                retryAfter: retryAfterSeconds,
+            }), {
+                status: 429,
+                headers: {
+                    ...corsHeaders,
+                    'Content-Type': 'application/json',
+                    'Retry-After': retryAfterSeconds.toString(),
+                },
+            })
+        }
+
         // Multi-tenant: Get organization ID from request or user profile
+        const orgPerf = new PerformanceTracker('get_organization_context')
         let organizationId = body.organizationId
         if (!organizationId) {
             const { data: profile } = await supabaseAdmin
@@ -304,16 +423,60 @@ serve(async (req: Request) => {
                 .single()
             organizationId = profile?.current_organization_id
         }
+
+        // SECURITY: Require organization context - no fallback to random org
         if (!organizationId) {
-            const { data: orgs } = await supabaseAdmin
-                .from('organizations')
-                .select('id')
-                .eq('is_active', true)
-                .limit(1)
-            if (orgs && orgs.length > 0) organizationId = orgs[0].id
+            orgPerf.end({ organizationId: 'none' })
+            addBreadcrumb('security', 'Organization context missing', {
+                userId: user.id,
+                hasBodyOrgId: !!body.organizationId
+            }, 'error')
+            throw new Error('Organization context required. Please select a restaurant before proceeding with payment.')
         }
-        if (!organizationId) {
-            throw new Error('Organization context required')
+
+        // Verify user is actually a member of this organization
+        const { data: membership, error: memberError } = await supabaseAdmin
+            .from('organization_members')
+            .select('id, is_active, role')
+            .eq('organization_id', organizationId)
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+        if (memberError) {
+            console.error('Error checking organization membership:', memberError)
+        }
+
+        if (!membership || !membership.is_active) {
+            orgPerf.end({ organizationId, membership: membership ? 'inactive' : 'none' })
+            addBreadcrumb('security', 'User not member of organization', {
+                userId: user.id,
+                organizationId,
+                membership: membership ? 'inactive' : 'none'
+            }, 'error')
+            throw new Error('You are not a member of this organization. Please join the restaurant first.')
+        }
+
+        orgPerf.end({ organizationId, userRole: membership?.role })
+
+        // Section 8.2: Set organization context for Sentry
+        addBreadcrumb('organization', 'Processing payment intent', { organizationId }, 'info')
+
+        // Section 8.2: Request signature validation (non-blocking for backward compatibility)
+        if (body.timestamp && body.nonce && body.signature) {
+            const signaturePerf = new PerformanceTracker('signature_validation')
+            const validationResult = await validateRequestSignature(req, body, organizationId)
+            signaturePerf.end({ valid: validationResult.valid })
+
+            if (!validationResult.valid) {
+                // Log warning but don't block request for backward compatibility
+                addBreadcrumb('signature', 'Invalid signature (continuing for backward compatibility)', {
+                    reason: validationResult.reason,
+                    organizationId
+                }, 'warning')
+                console.warn(`[SECURITY] Invalid request signature: ${validationResult.reason}`)
+            } else {
+                addBreadcrumb('signature', 'Valid request signature', { organizationId }, 'info')
+            }
         }
 
         // SECURITY: Validate cart is not empty
@@ -341,14 +504,17 @@ serve(async (req: Request) => {
             if (item.isSplit && item.secondProductId) menuItemIds.add(item.secondProductId)
         })
 
+        const menuPerf = new PerformanceTracker('db_query', { table: 'menu_items' })
         const { data: menuItems, error: menuError } = await supabaseAdmin
             .from('menu_items')
             .select('id, prezzo, prezzo_scontato, disponibile')
             .in('id', Array.from(menuItemIds))
-            .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+            .eq('organization_id', organizationId)
+        menuPerf.end()
 
         if (menuError) {
             console.error('Menu fetch error:', menuError)
+            captureException(menuError, { context: 'menu_fetch', organizationId })
             throw new Error('Unable to validate cart items')
         }
 
@@ -364,20 +530,24 @@ serve(async (req: Request) => {
         let sizePriceOverrides: Record<string, Record<string, number | null>> = {}
 
         if (sizeIds.size > 0) {
+            const sizesPerf = new PerformanceTracker('db_query', { table: 'sizes_master' })
             const { data: sizes } = await supabaseAdmin
                 .from('sizes_master')
                 .select('id, price_multiplier')
                 .in('id', Array.from(sizeIds))
-                .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+                .eq('organization_id', organizationId)
+            sizesPerf.end()
 
             sizes?.forEach((s: any) => sizeMultipliers[s.id] = s.price_multiplier ?? 1.0)
 
+            const sizeAssignPerf = new PerformanceTracker('db_query', { table: 'menu_item_sizes' })
             const { data: sizeAssignments } = await supabaseAdmin
                 .from('menu_item_sizes')
                 .select('menu_item_id, size_id, price_override')
                 .in('menu_item_id', Array.from(menuItemIds))
                 .in('size_id', Array.from(sizeIds))
-                .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+                .eq('organization_id', organizationId)
+            sizeAssignPerf.end()
 
             sizeAssignments?.forEach((a: any) => {
                 if (!sizePriceOverrides[a.menu_item_id]) sizePriceOverrides[a.menu_item_id] = {}
@@ -398,22 +568,26 @@ serve(async (req: Request) => {
 
         if (allIngredientIds.size > 0) {
             const ids = Array.from(allIngredientIds)
+            const ingPerf = new PerformanceTracker('db_query', { table: 'ingredients' })
             const { data: ingredients } = await supabaseAdmin
                 .from('ingredients')
                 .select('id, prezzo')
                 .in('id', ids)
-                .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+                .eq('organization_id', organizationId)
+            ingPerf.end()
 
             ingredients?.forEach((ing: any) => ingredientPrices[ing.id] = ing.prezzo ?? 0)
 
             // Fetch size-specific ingredient prices if sizes are used
             if (sizeIds.size > 0) {
+                const sizePricePerf = new PerformanceTracker('db_query', { table: 'ingredient_size_prices' })
                 const { data: sizePrices } = await supabaseAdmin
                     .from('ingredient_size_prices')
                     .select('ingredient_id, size_id, prezzo')
                     .in('ingredient_id', ids)
                     .in('size_id', Array.from(sizeIds))
-                    .or(`organization_id.eq.${organizationId},organization_id.is.null`)
+                    .eq('organization_id', organizationId)
+                sizePricePerf.end()
 
                 sizePrices?.forEach((sp: any) => {
                     if (!ingredientSizePrices[sp.ingredient_id]) ingredientSizePrices[sp.ingredient_id] = {}
@@ -525,7 +699,15 @@ serve(async (req: Request) => {
             calculatedDeliveryFee: deliveryFee,
         }
 
+        requestPerf.end({ paymentIntentId: paymentIntent.id })
+
         console.log(`PaymentIntent created: ${paymentIntent.id}`)
+
+        addBreadcrumb('payment_intent', 'PaymentIntent created successfully', {
+            paymentIntentId: paymentIntent.id,
+            amount: amountInCents,
+            currency
+        }, 'info')
 
         return new Response(
             JSON.stringify(response),
@@ -537,6 +719,12 @@ serve(async (req: Request) => {
     } catch (err) {
         const error = err as Error
         console.error('Error creating PaymentIntent:', error)
+
+        // Section 8.2: Capture error in Sentry
+        captureException(error, {
+            function: 'create-payment-intent',
+            version: FUNCTION_VERSION,
+        })
 
         // SECURITY: Return sanitized error message
         return new Response(

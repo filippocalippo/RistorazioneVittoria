@@ -4,6 +4,7 @@ import '../core/utils/logger.dart';
 import 'pizzeria_settings_provider.dart';
 import 'auth_provider.dart';
 import 'screen_persistence_provider.dart';
+import 'organization_provider.dart';
 
 part 'app_startup_provider.g.dart';
 
@@ -23,6 +24,7 @@ Future<void> appStartup(Ref ref) async {
       ref.watch(pizzeriaSettingsProvider.future),
       ref.watch(authProvider.future),
       ref.read(screenPersistenceProvider.future),
+      ref.watch(currentOrganizationProvider.future),
 
       // Add any other critical providers here
       // ref.watch(categoriesProvider.future),

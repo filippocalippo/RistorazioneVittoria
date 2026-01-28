@@ -11,6 +11,7 @@ import '../../../core/widgets/manager_quick_switch.dart';
 import '../../../core/widgets/pizzeria_logo.dart';
 import '../../../providers/pizzeria_settings_provider.dart';
 import '../../../core/navigation/back_navigation_handler.dart';
+import '../../../core/widgets/offline_banner.dart';
 
 /// Manager app shell with sidebar navigation
 class ManagerShell extends ConsumerStatefulWidget {
@@ -53,23 +54,30 @@ class _ManagerShellState extends ConsumerState<ManagerShell> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
-          child: Stack(
+          child: Column(
             children: [
-              Row(
-                children: [
-                  // Sidebar (desktop only)
-                  if (isDesktop) _buildSidebar(context, ref, user),
+              const OfflineBanner(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        // Sidebar (desktop only)
+                        if (isDesktop) _buildSidebar(context, ref, user),
 
-                  // Main content
-                  Expanded(child: widget.child),
-                ],
-              ),
-              if (currentPath != RouteNames.cashierOrder)
-                const Positioned(
-                  bottom: 0,
-                  left: 0,
-                  child: ManagerQuickSwitch(),
+                        // Main content
+                        Expanded(child: widget.child),
+                      ],
+                    ),
+                    if (currentPath != RouteNames.cashierOrder)
+                      const Positioned(
+                        bottom: 0,
+                        left: 0,
+                        child: ManagerQuickSwitch(),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),

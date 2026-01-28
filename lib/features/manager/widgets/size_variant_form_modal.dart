@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../DesignSystem/design_tokens.dart';
 import '../../../core/models/size_variant_model.dart';
+import '../../../providers/organization_provider.dart';
 
 class SizeVariantFormModal extends ConsumerStatefulWidget {
   final SizeVariantModel? size;
@@ -260,7 +261,12 @@ class _SizeVariantFormModalState extends ConsumerState<SizeVariantFormModal> {
     try {
       final multiplier = double.parse(_multiplierController.text);
 
+      // Preserve organization_id from existing size or get current
+      final organizationId = widget.size?.organizationId ??
+          await ref.read(currentOrganizationProvider.future);
+
       final sizeModel = SizeVariantModel(
+        organizationId: organizationId,
         id: widget.size?.id ?? const Uuid().v4(),
         nome: _nomeController.text.trim(),
         slug: _slugController.text.trim(),

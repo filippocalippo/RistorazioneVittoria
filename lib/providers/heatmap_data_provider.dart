@@ -79,6 +79,20 @@ Future<HeatmapData> deliveryHeatmapData(Ref ref) async {
     // Get organization context for multi-tenant filtering
     final orgId = await ref.read(currentOrganizationProvider.future);
 
+    // SECURITY: Require organization context to prevent cross-tenant data access
+    if (orgId == null) {
+      Logger.warning('No organization context for heatmap data', tag: 'HeatmapProvider');
+      return const HeatmapData(
+        points: [],
+        stats: HeatmapStats(
+          totalOrders: 0,
+          geocodedOrders: 0,
+          ordersByZone: {},
+          ordersByHour: {},
+        ),
+      );
+    }
+
     // Calculate date range (last 2 months)
     final now = DateTime.now();
     final twoMonthsAgo = DateTime(now.year, now.month - 2, now.day);
@@ -88,8 +102,8 @@ Future<HeatmapData> deliveryHeatmapData(Ref ref) async {
       tag: 'HeatmapProvider',
     );
 
-    // Query orders with geocoded positions only
-    var query = SupabaseConfig.client.from('ordini').select('''
+    // Query orders with geocoded positions only (strict multi-tenant filter)
+    final response = await SupabaseConfig.client.from('ordini').select('''
           id,
           tipo,
           latitude_consegna,
@@ -98,14 +112,8 @@ Future<HeatmapData> deliveryHeatmapData(Ref ref) async {
           zone,
           created_at,
           slot_prenotato_start
-        ''');
-
-    // Multi-tenant filter: org-specific or global (null)
-    if (orgId != null) {
-      query = query.or('organization_id.eq.$orgId,organization_id.is.null');
-    }
-
-    final response = await query
+        ''')
+        .eq('organization_id', orgId)
         .eq('tipo', 'delivery')
         .not('latitude_consegna', 'is', null)
         .not('longitude_consegna', 'is', null)

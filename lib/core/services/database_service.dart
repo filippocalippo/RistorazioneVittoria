@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import '../config/supabase_config.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
@@ -16,34 +17,9 @@ import '../models/settings/display_branding_settings.dart';
 import '../models/settings/kitchen_management_settings.dart';
 import '../models/settings/business_rules_settings.dart';
 import '../utils/enums.dart';
+import 'google_geocoding_service.dart';
 import '../utils/model_parsers.dart';
 import '../exceptions/app_exceptions.dart';
-
-// =============================================================================
-// TODO: SAAS MIGRATION - Organization Filtering Required
-// =============================================================================
-// The following tables need organization_id filtering:
-// - categorie_menu, menu_items, ingredients, sizes_master
-// - ordini, ordini_items, notifiche, cashier_customers
-// - delivery_zones, allowed_cities, promotional_banners
-// - business_rules, delivery_configuration, order_management
-// - kitchen_management, display_branding, dashboard_security
-// - ingredient_consumption_rules, inventory_logs, payment_transactions
-//
-// For each query:
-// 1. Add String? organizationId parameter to the method
-// 2. Add .eq('organization_id', organizationId) to SELECT queries
-// 3. Add 'organization_id': organizationId to INSERT payloads
-//
-// Example:
-//   Future<List<MenuItem>> getMenuItems({String? organizationId}) async {
-//     var query = _client.from('menu_items').select();
-//     if (organizationId != null) {
-//       query = query.eq('organization_id', organizationId);
-//     }
-//     return query...
-//   }
-// =============================================================================
 
 class DatabaseService {
   final SupabaseClient _client = SupabaseConfig.client;
@@ -290,14 +266,67 @@ class DatabaseService {
   }
 
   /// Update business_rules table for the current organization
+  /// Automatically geocodes address if indirizzo, citta, cap, or provincia are provided
   Future<void> updateBusinessRules(
     Map<String, dynamic> updates, {
     String? organizationId,
   }) async {
     try {
+      // Check if address fields are being updated
+      final hasAddressUpdate = updates.containsKey('indirizzo') ||
+          updates.containsKey('citta') ||
+          updates.containsKey('cap') ||
+          updates.containsKey('provincia');
+
+      LatLng? geocodedCoords;
+
+      if (hasAddressUpdate) {
+        // Geocode the address and save coordinates
+        final indirizzo = updates['indirizzo'] as String?;
+        final citta = updates['citta'] as String?;
+        final cap = updates['cap'] as String?;
+        final provincia = updates['provincia'] as String?;
+
+        // Only geocode if we have at least a city
+        if (citta != null && citta.isNotEmpty) {
+          try {
+            geocodedCoords = await GoogleGeocodingService.geocodeAddress(
+              indirizzo: indirizzo,
+              citta: citta,
+              cap: cap,
+              provincia: provincia,
+            );
+            if (geocodedCoords != null) {
+              Logger.info(
+                'Geocoded organization address: ${geocodedCoords.latitude}, ${geocodedCoords.longitude}',
+                tag: 'DatabaseService',
+              );
+            } else {
+              Logger.warning(
+                'Failed to geocode organization address: $citta',
+                tag: 'DatabaseService',
+              );
+            }
+          } catch (e) {
+            Logger.error(
+              'Error geocoding organization address: $e',
+              tag: 'DatabaseService',
+            );
+            // Continue with the update even if geocoding fails
+          }
+        }
+      }
+
+      // Create a new map with the geocoded coordinates to avoid type issues
+      final finalUpdates = <String, dynamic>{...updates};
+      if (geocodedCoords != null) {
+        finalUpdates['latitude'] = geocodedCoords.latitude;
+        finalUpdates['longitude'] = geocodedCoords.longitude;
+      }
+
       await _upsertSettingsRow(
         'business_rules',
-        updates,
+        finalUpdates,
         organizationId: organizationId,
       );
     } on PostgrestException catch (e) {
@@ -619,8 +648,8 @@ class DatabaseService {
         'indirizzoConsegna': indirizzoConsegna,
         'cittaConsegna': cittaConsegna,
         'capConsegna': capConsegna,
-        'deliveryLatitude': latitudeConsegna,
-        'deliveryLongitude': longitudeConsegna,
+        'latitude_consegna': latitudeConsegna,
+        'longitude_consegna': longitudeConsegna,
         'note': note,
         'slotPrenotatoStart': slotPrenotatoStart?.toUtc().toIso8601String(),
         'cashierCustomerId': cashierCustomerId,
@@ -1014,8 +1043,8 @@ class DatabaseService {
         'indirizzoConsegna': indirizzoConsegna,
         'cittaConsegna': cittaConsegna,
         'capConsegna': capConsegna,
-        'deliveryLatitude': latitudeConsegna,
-        'deliveryLongitude': longitudeConsegna,
+        'latitude_consegna': latitudeConsegna,
+        'longitude_consegna': longitudeConsegna,
         'note': note,
         'slotPrenotatoStart': slotPrenotatoStart?.toUtc().toIso8601String(),
         'cashierCustomerId': cashierCustomerId,

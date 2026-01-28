@@ -12,6 +12,7 @@ import '../../../providers/menu_provider.dart';
 import '../../../providers/cashier_order_provider.dart';
 import '../../../providers/reminders_provider.dart';
 import '../../../core/services/database_service.dart';
+import '../../../core/widgets/error_boundary.dart';
 import '../widgets/order_detail_panel.dart';
 
 /// Clean, focused orders management screen
@@ -58,29 +59,32 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen>
     final ordersAsync = ref.watch(managerOrdersProvider);
     final isDesktop = AppBreakpoints.isDesktop(context);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          // Header
-          _buildHeader(context, isDesktop),
+    return ErrorBoundaryWithLogger(
+      contextTag: 'OrdersScreen',
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Column(
+          children: [
+            // Header
+            _buildHeader(context, isDesktop),
 
-          // Tab bar
-          _buildTabBar(),
+            // Tab bar
+            _buildTabBar(),
 
-          // Orders list
-          Expanded(
-            child: ordersAsync.when(
-              data: (orders) => isDesktop
-                  ? _buildDesktopLayout(orders)
-                  : _buildOrdersList(orders),
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+            // Orders list
+            Expanded(
+              child: ordersAsync.when(
+                data: (orders) => isDesktop
+                    ? _buildDesktopLayout(orders)
+                    : _buildOrdersList(orders),
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+                error: (e, _) => _buildErrorState(e.toString()),
               ),
-              error: (e, _) => _buildErrorState(e.toString()),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

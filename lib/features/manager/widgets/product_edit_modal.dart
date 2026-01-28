@@ -18,6 +18,7 @@ import '../../../providers/sizes_master_provider.dart';
 import '../../../providers/product_sizes_provider.dart';
 import '../../../providers/product_included_ingredients_provider.dart';
 import '../../../providers/product_extra_ingredients_provider.dart';
+import '../../../providers/organization_provider.dart';
 
 /// Product Edit Modal - Full-featured modal with all options from ProductFormScreen
 class ProductEditModal extends ConsumerStatefulWidget {
@@ -453,7 +454,7 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
             prefixIcon: Icons.category_rounded,
           ),
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const Text('Errore caricamento categorie'),
+          error: (_, _) => const Text('Errore caricamento categorie'),
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -482,7 +483,7 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
                   children: sizes.map((size) => _buildSizeCard(size)).toList(),
                 ),
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const Text('Errore'),
+          error: (_, _) => const Text('Errore'),
         ),
 
         const SizedBox(height: 32),
@@ -499,7 +500,7 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
             emptyText: 'Tocca per selezionare ingredienti inclusi',
           ),
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const Text('Errore'),
+          error: (_, _) => const Text('Errore'),
         ),
 
         const SizedBox(height: 32),
@@ -524,7 +525,7 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
             showPrice: true,
           ),
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const Text('Errore'),
+          error: (_, _) => const Text('Errore'),
         ),
 
         const SizedBox(height: 32),
@@ -1101,7 +1102,7 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
         );
       },
       loading: () => const LinearProgressIndicator(),
-      error: (_, __) => const Text('Errore'),
+      error: (_, _) => const Text('Errore'),
     );
   }
 
@@ -1385,7 +1386,12 @@ class _ProductEditModalState extends ConsumerState<ProductEditModal> {
         );
       }
 
+      // Preserve organization_id from existing item or get current
+      final organizationId = widget.item?.organizationId ??
+          await ref.read(currentOrganizationProvider.future);
+
       final menuItem = MenuItemModel(
+        organizationId: organizationId,
         id: widget.item?.id ?? '',
         categoriaId: _selectedCategoryId,
         nome: _nomeController.text.trim(),

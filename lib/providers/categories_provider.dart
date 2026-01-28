@@ -24,20 +24,17 @@ class CategoriesNotifier
       // Get current organization ID
       final orgId = await ref.read(currentOrganizationProvider.future);
 
-      // Build query with multi-tenant filter
-      dynamic response;
-      if (orgId != null) {
-        response = await _supabase
-            .from('categorie_menu')
-            .select()
-            .or('organization_id.eq.$orgId,organization_id.is.null')
-            .order('ordine', ascending: true);
-      } else {
-        response = await _supabase
-            .from('categorie_menu')
-            .select()
-            .order('ordine', ascending: true);
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        throw Exception('Organization context required');
       }
+
+      // Build query with strict multi-tenant filter (no .is.null pattern)
+      final response = await _supabase
+          .from('categorie_menu')
+          .select()
+          .eq('organization_id', orgId)
+          .order('ordine', ascending: true);
 
       final categories = (response as List)
           .map((json) => CategoryModel.fromJson(json))

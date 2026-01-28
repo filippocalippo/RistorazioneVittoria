@@ -18,23 +18,19 @@ class PromotionalBanners extends _$PromotionalBanners {
     final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      dynamic response;
-      if (orgId != null) {
-        response = await SupabaseConfig.client
-            .from('promotional_banners')
-            .select()
-            .eq('attivo', true)
-            .or('organization_id.eq.$orgId,organization_id.is.null')
-            .order('priorita', ascending: false)
-            .order('ordine', ascending: true);
-      } else {
-        response = await SupabaseConfig.client
-            .from('promotional_banners')
-            .select()
-            .eq('attivo', true)
-            .order('priorita', ascending: false)
-            .order('ordine', ascending: true);
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        Logger.warning('No organization context for banners', tag: 'Banners');
+        return [];
       }
+
+      final response = await SupabaseConfig.client
+          .from('promotional_banners')
+          .select()
+          .eq('attivo', true)
+          .eq('organization_id', orgId)
+          .order('priorita', ascending: false)
+          .order('ordine', ascending: true);
 
       final now = DateTime.now();
       final banners = (response as List)

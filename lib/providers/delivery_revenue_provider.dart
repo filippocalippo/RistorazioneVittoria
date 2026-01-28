@@ -107,23 +107,30 @@ class DeliveryRevenue extends _$DeliveryRevenue {
       // Get organization context for multi-tenant filtering
       final orgId = await ref.read(currentOrganizationProvider.future);
 
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        Logger.warning('No organization context for delivery revenue', tag: 'DeliveryRevenue');
+        return DeliveryRevenueData(
+          date: date,
+          personStats: [],
+          totalDeliveries: 0,
+          totalRevenue: 0,
+          totalEarnings: 0,
+          totalOnTime: 0,
+          totalLate: 0,
+        );
+      }
+
       Logger.debug(
         'Fetching delivery revenue for ${date.toIso8601String().split('T')[0]}',
         tag: 'DeliveryRevenue',
       );
 
-      // Build base query
-      var query = SupabaseConfig.client
+      // Fetch all completed delivery orders for the selected date (strict multi-tenant filter)
+      final ordersResponse = await SupabaseConfig.client
           .from('ordini')
-          .select('*, ordini_items(*)');
-
-      // Multi-tenant filter: org-specific or global (null)
-      if (orgId != null) {
-        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
-      }
-
-      // Fetch all completed delivery orders for the selected date
-      final ordersResponse = await query
+          .select('*, ordini_items(*)')
+          .eq('organization_id', orgId)
           .eq('tipo', 'delivery')
           .eq('stato', 'completed')
           .gte('slot_prenotato_start', startOfDay.toUtc().toIso8601String())

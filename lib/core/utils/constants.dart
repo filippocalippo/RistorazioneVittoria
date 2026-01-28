@@ -49,6 +49,9 @@ class RouteNames {
   // ========== Auth ==========
   static const String login = '/login';
   static const String forgotPassword = '/forgot-password';
+  static const String connect = '/connect';
+  static const String joinOrg = '/join';
+  static const String switchOrg = '/switch-org';
 
   // ========== Customer ==========
   static const String menu = '/menu';

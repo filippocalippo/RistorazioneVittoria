@@ -15,26 +15,24 @@ final productMonthlySalesProvider = FutureProvider<Map<String, int>>((
   // Get organization context for multi-tenant filtering
   final orgId = await ref.read(currentOrganizationProvider.future);
 
+  // SECURITY: Require organization context to prevent cross-tenant data access
+  if (orgId == null) {
+    Logger.warning('No organization context for monthly sales stats', tag: 'ProductMonthlySales');
+    return {};
+  }
+
   try {
     // Determine start date string (UTC)
     final startDateStr = thirtyDaysAgo.toUtc().toIso8601String();
 
-    // Build base query with inner join to ordini
-    var query = supabase
+    // Build base query with inner join to ordini (strict multi-tenant filter)
+    final response = await supabase
         .from('ordini_items')
         .select(
           'menu_item_id, quantita, ordini!inner(created_at, stato, organization_id)',
-        );
-
-    // Multi-tenant filter on the parent ordini table
-    if (orgId != null) {
-      query = query.or(
-        'ordini.organization_id.eq.$orgId,ordini.organization_id.is.null',
-      );
-    }
-
-    final response = await query
+        )
         .gte('ordini.created_at', startDateStr)
+        .eq('ordini.organization_id', orgId)
         .neq('ordini.stato', 'cancelled');
 
     final List<dynamic> data = response as List;

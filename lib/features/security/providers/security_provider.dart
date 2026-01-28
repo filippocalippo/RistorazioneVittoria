@@ -91,11 +91,13 @@ class SecurityStateNotifier extends StateNotifier<SecurityState> {
         return;
       }
 
-      // Check if table has entry
+      // Check if table has entry for current organization
+      // After migration 012, organization_id is the PK
+      // RLS ensures we only see the current org's settings
       final settings =
           await Supabase.instance.client
               .from('dashboard_security')
-              .select('id')
+              .select('organization_id')
               .maybeSingle();
 
       if (settings == null) {

@@ -18,6 +18,8 @@ import 'core/utils/welcome_popup_manager.dart';
 import 'core/widgets/app_splash_overlay.dart';
 import 'package:auto_updater/auto_updater.dart';
 import 'core/services/stripe_service.dart';
+import 'core/services/sentry_service.dart';
+import 'core/services/deep_link_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,17 +66,24 @@ void main() async {
     Logger.info('Initializing Firebase...', tag: 'Main');
     await FirebaseConfig.initialize();
 
-    // 5.1 Inizializza i dati di localizzazione per Intl (es. it_IT)
+    // 5. Inizializza Sentry per error tracking
+    Logger.info('Initializing Sentry...', tag: 'Main');
+    await SentryService.initialize(
+      dsn: EnvConfig.sentryDsnFlutter,
+      environment: EnvConfig.sentryEnvironment,
+      release: '1.2.0', // From pubspec.yaml version
+    );
+
+    // 6. Inizializza i dati di localizzazione per Intl (es. it_IT)
     Logger.info('Initializing locales (Intl)...', tag: 'Main');
     await initializeDateFormatting('it_IT');
     Intl.defaultLocale = 'it_IT';
 
-    // 6. Initialize Stripe SDK (for card payments)
+    // 7. Initialize Stripe SDK (for card payments)
     Logger.info('Initializing Stripe...', tag: 'Main');
     await StripeService.initialize();
 
-    // 7. Initialize Auto Updater (Windows only)
-    // 5.2 Initialize Auto Updater (Windows only)
+    // 8. Initialize Auto Updater (Windows only)
     if (EnvConfig.isWindows) {
       Logger.info('Initializing Auto Updater...', tag: 'Main');
       try {
@@ -109,6 +118,13 @@ void main() async {
       tag: 'Main',
       error: e,
       stackTrace: stackTrace,
+    );
+
+    // Capture error in Sentry
+    SentryService.captureException(
+      e,
+      stackTrace: stackTrace,
+      context: {'stage': 'initialization'},
     );
 
     // Mostra errore all'utente
@@ -164,6 +180,8 @@ class _RotanteAppState extends ConsumerState<RotanteApp>
     with WidgetsBindingObserver {
   String? _lastUserId;
   String? _currentRoute;
+  final DeepLinkService _deepLinkService = DeepLinkService();
+  bool _deepLinkInitialized = false;
 
   @override
   void initState() {
@@ -174,6 +192,7 @@ class _RotanteAppState extends ConsumerState<RotanteApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _deepLinkService.dispose();
     super.dispose();
   }
 
@@ -191,6 +210,11 @@ class _RotanteAppState extends ConsumerState<RotanteApp>
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final startupState = ref.watch(appStartupProvider);
+
+    if (!_deepLinkInitialized) {
+      _deepLinkInitialized = true;
+      _deepLinkService.init(router);
+    }
 
     // Track current route
     router.routerDelegate.addListener(() {

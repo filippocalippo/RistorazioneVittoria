@@ -5,6 +5,8 @@ import '../core/services/auth_service.dart';
 import '../core/models/user_model.dart';
 import '../core/config/supabase_config.dart';
 import '../core/utils/logger.dart';
+import '../core/utils/enums.dart';
+import 'organization_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -67,15 +69,39 @@ class Auth extends _$Auth {
     Logger.debug('Restoring session user from Supabase', tag: 'Auth');
 
     try {
-      final data = await SupabaseConfig.client
+      // Load profile with current organization ID
+      final profileResponse = await SupabaseConfig.client
           .from('profiles')
           .select()
           .eq('id', currentUser.id)
           .single();
 
-      final profile = UserModel.fromJson(data);
+      final currentOrgId = profileResponse['current_organization_id'] as String?;
+      Map<String, dynamic> profileData = Map<String, dynamic>.from(profileResponse);
 
-      Logger.debug('Profile loaded from session', tag: 'Auth');
+      if (currentOrgId != null) {
+        // Get role from organization_members for the current organization
+        final memberResponse = await SupabaseConfig.client
+            .from('organization_members')
+            .select('role')
+            .eq('user_id', currentUser.id)
+            .eq('organization_id', currentOrgId)
+            .eq('is_active', true)
+            .maybeSingle();
+
+        if (memberResponse != null) {
+          profileData['ruolo'] = memberResponse['role'] as String;
+          Logger.debug('Using org role: ${memberResponse['role']}', tag: 'Auth');
+        } else {
+          Logger.warning('No active membership in current org, using default role', tag: 'Auth');
+        }
+      } else {
+        Logger.debug('No current organization set, using default role', tag: 'Auth');
+      }
+
+      final profile = UserModel.fromJson(profileData);
+
+      Logger.debug('Profile loaded from session with role: ${profile.ruolo.name}', tag: 'Auth');
       return profile;
     } catch (e) {
       Logger.error(
@@ -123,6 +149,64 @@ class Auth extends _$Auth {
     if (user != null) {
       final authService = ref.read(authServiceProvider);
       await authService.updateFcmToken(user.id, token);
+    }
+  }
+
+  /// Reload only the organization role without invalidating the entire auth state.
+  /// This prevents the race condition when switching organizations.
+  /// Called by RouterNotifier when currentOrganizationProvider changes.
+  Future<void> reloadOrgRole() async {
+    final currentUser = state.value;
+    if (currentUser == null) {
+      Logger.debug('No user to reload role for', tag: 'Auth');
+      return;
+    }
+
+    Logger.debug('Reloading org role for user: ${currentUser.id}', tag: 'Auth');
+
+    try {
+      final client = Supabase.instance.client;
+
+      // Get current organization ID from the provider
+      final currentOrgId = await ref.read(currentOrganizationProvider.future);
+
+      if (currentOrgId == null) {
+        // No organization - use default customer role
+        Logger.debug('No organization set, using default customer role', tag: 'Auth');
+        final updatedUser = currentUser.copyWith(ruolo: UserRole.customer);
+        state = AsyncValue.data(updatedUser);
+        return;
+      }
+
+      // Get role for the new organization
+      final memberResponse = await client
+          .from('organization_members')
+          .select('role')
+          .eq('user_id', currentUser.id)
+          .eq('organization_id', currentOrgId)
+          .eq('is_active', true)
+          .maybeSingle();
+
+      if (memberResponse != null) {
+        final roleString = memberResponse['role'] as String;
+        final role = UserRole.fromString(roleString);
+        final updatedUser = currentUser.copyWith(ruolo: role);
+        state = AsyncValue.data(updatedUser);
+        Logger.debug('Org role reloaded successfully: $roleString', tag: 'Auth');
+      } else {
+        // No active membership - use default customer role
+        Logger.warning('No active membership in current org, using default customer role', tag: 'Auth');
+        final updatedUser = currentUser.copyWith(ruolo: UserRole.customer);
+        state = AsyncValue.data(updatedUser);
+      }
+    } catch (e, stack) {
+      Logger.error(
+        'Failed to reload org role: $e',
+        tag: 'Auth',
+        error: e,
+        stackTrace: stack,
+      );
+      // Don't change state on error - keep existing user data
     }
   }
 

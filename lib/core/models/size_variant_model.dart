@@ -8,6 +8,7 @@ part 'size_variant_model.g.dart';
 @freezed
 class SizeVariantModel with _$SizeVariantModel {
   const factory SizeVariantModel({
+    @JsonKey(name: 'organization_id') String? organizationId,
     required String id,
     required String nome,
     required String slug,

@@ -3,12 +3,16 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../providers/screen_persistence_provider.dart';
+import '../providers/organization_provider.dart';
 import '../core/utils/enums.dart';
 import '../core/utils/constants.dart';
 import '../core/models/user_model.dart';
 import '../core/utils/logger.dart';
 import '../core/widgets/app_shell.dart';
 import '../features/auth/screens/login_screen.dart';
+import '../features/onboarding/screens/connect_screen.dart';
+import '../features/onboarding/screens/organization_preview_screen.dart';
+import '../features/onboarding/screens/organization_switcher_screen.dart';
 import '../features/customer/screens/menu_screen.dart';
 import '../features/customer/screens/current_order_screen.dart';
 import '../features/customer/screens/cart_screen.dart';
@@ -46,6 +50,20 @@ class RouterNotifier extends ChangeNotifier {
         tag: 'Router',
       );
       notifyListeners();
+    });
+
+    // Listen to organization context changes - reload ONLY the org role, not entire auth state
+    // This prevents race conditions and double rebuilds during org switching
+    ref.listen<AsyncValue<String?>>(currentOrganizationProvider, (
+      previous,
+      next,
+    ) {
+      if (previous?.value != next.value) {
+        Logger.debug('RouterNotifier: Org context changed, reloading role', tag: 'Router');
+        // Reload ONLY the role, not entire auth state - prevents race condition
+        ref.read(authProvider.notifier).reloadOrgRole();
+        notifyListeners();
+      }
     });
 
     // Listen to screen persistence to update route once loaded
@@ -93,26 +111,42 @@ final routerProvider = Provider<GoRouter>((ref) {
         tag: 'Router',
       );
 
+      final orgState = ref.read(currentOrganizationProvider);
+      if (orgState.isLoading) {
+        Logger.debug('   Org context loading - skip redirect', tag: 'Router');
+        return null;
+      }
+
+      final hasOrgContext = orgState.maybeWhen(
+        data: (orgId) => orgId != null,
+        orElse: () => false,
+      );
+
       final isAuthenticated = authState.value != null;
       final isLoginRoute = state.matchedLocation == RouteNames.login;
       final isRoot = state.matchedLocation == '/';
 
-      // Public routes that don't require authentication
-      final publicRoutes = [
-        RouteNames.login,
-        RouteNames.menu,
-        RouteNames.cart,
-        '/cart-new',
-      ];
-      final isPublicRoute = publicRoutes.contains(state.matchedLocation);
+      final onboardingRoutes = [RouteNames.connect, RouteNames.joinOrg];
+      final isOnboardingRoute = onboardingRoutes.any(
+        (r) => state.matchedLocation.startsWith(r),
+      );
 
-      // Non autenticato e non su route pubblica -> vai a menu
-      if (!isAuthenticated && !isPublicRoute) {
+      if (!hasOrgContext && !isOnboardingRoute) {
         Logger.debug(
-          '   → Redirecting to menu (not authenticated)',
+          '   → Redirecting to connect (missing org context)',
           tag: 'Router',
         );
-        return RouteNames.menu;
+        return RouteNames.connect;
+      }
+
+      if (hasOrgContext && !isAuthenticated && !isOnboardingRoute) {
+        if (!isLoginRoute) {
+          Logger.debug(
+            '   → Redirecting to login (org set, not authenticated)',
+            tag: 'Router',
+          );
+          return RouteNames.login;
+        }
       }
 
       // Autenticato e su login o root -> vai alla home del suo ruolo o last screen
@@ -160,6 +194,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: RouteNames.login,
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.connect,
+        name: 'connect',
+        builder: (context, state) => const ConnectScreen(),
+      ),
+      GoRoute(
+        path: '${RouteNames.joinOrg}/:slug',
+        name: 'join-org',
+        builder: (context, state) {
+          final slug = state.pathParameters['slug']!;
+          return OrganizationPreviewScreen(slug: slug);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.switchOrg,
+        name: 'switch-org',
+        builder: (context, state) => const OrganizationSwitcherScreen(),
       ),
 
       // ========== Customer Routes ==========

@@ -54,16 +54,22 @@ Future<StockSummary> stockSummary(Ref ref) async {
   // Get organization context for multi-tenant filtering
   final orgId = await ref.read(currentOrganizationProvider.future);
 
-  var query = supabase
-      .from('ingredients')
-      .select('id, stock_quantity, low_stock_threshold, track_stock, attivo');
-
-  // Multi-tenant filter: org-specific or global (null)
-  if (orgId != null) {
-    query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+  // SECURITY: Require organization context to prevent cross-tenant data access
+  if (orgId == null) {
+    return const StockSummary(
+      totalIngredients: 0,
+      trackedIngredients: 0,
+      lowStockCount: 0,
+      criticalStockCount: 0,
+      totalStockValue: 0,
+    );
   }
 
-  final data = await query.eq('attivo', true);
+  final data = await supabase
+      .from('ingredients')
+      .select('id, stock_quantity, low_stock_threshold, track_stock, attivo')
+      .eq('organization_id', orgId)
+      .eq('attivo', true);
 
   int total = 0;
   int tracked = 0;
@@ -107,14 +113,15 @@ Future<List<IngredientStockStatus>> lowStockIngredients(Ref ref) async {
   // Get organization context for multi-tenant filtering
   final orgId = await ref.read(currentOrganizationProvider.future);
 
-  var query = supabase.from('ingredients').select();
-
-  // Multi-tenant filter: org-specific or global (null)
-  if (orgId != null) {
-    query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+  // SECURITY: Require organization context to prevent cross-tenant data access
+  if (orgId == null) {
+    return [];
   }
 
-  final data = await query
+  final data = await supabase
+      .from('ingredients')
+      .select()
+      .eq('organization_id', orgId)
       .eq('track_stock', true)
       .eq('attivo', true)
       .order('stock_quantity');
@@ -173,14 +180,15 @@ Future<List<IngredientStockStatus>> allTrackedIngredients(Ref ref) async {
   // Get organization context for multi-tenant filtering
   final orgId = await ref.read(currentOrganizationProvider.future);
 
-  var query = supabase.from('ingredients').select();
-
-  // Multi-tenant filter: org-specific or global (null)
-  if (orgId != null) {
-    query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+  // SECURITY: Require organization context to prevent cross-tenant data access
+  if (orgId == null) {
+    return [];
   }
 
-  final data = await query
+  final data = await supabase
+      .from('ingredients')
+      .select()
+      .eq('organization_id', orgId)
       .eq('track_stock', true)
       .eq('attivo', true)
       .order('nome');

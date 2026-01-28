@@ -591,7 +591,7 @@ class _UserDetailModalState extends ConsumerState<UserDetailModal> {
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
-      error: (_, __) => Center(
+      error: (_, _) => Center(
         child: Text(
           'Errore nel caricamento',
           style: AppTypography.bodySmall.copyWith(color: AppColors.error),
@@ -646,7 +646,7 @@ class _UserDetailModalState extends ConsumerState<UserDetailModal> {
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
-      error: (_, __) => Center(
+      error: (_, _) => Center(
         child: Text(
           'Errore nel caricamento',
           style: AppTypography.bodySmall.copyWith(color: AppColors.error),

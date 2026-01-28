@@ -185,7 +185,12 @@ class _InventoryEditModalState extends ConsumerState<InventoryEditModal> {
     setState(() => _isSaving = true);
 
     try {
+      // Preserve organization_id from existing ingredient or get current
+      final organizationId = _selectedIngredient?.organizationId ??
+          await ref.read(currentOrganizationProvider.future);
+
       final ingredientData = IngredientModel(
+        organizationId: organizationId,
         id: _selectedIngredient?.id ?? const Uuid().v4(),
         nome: _nameController.text.trim(),
         prezzo: double.tryParse(_priceController.text) ?? 0.0,

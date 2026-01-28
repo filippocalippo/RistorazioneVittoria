@@ -18,21 +18,17 @@ class Sizes extends _$Sizes {
     final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
-      dynamic response;
-      if (orgId != null) {
-        response = await supabase
-            .from('sizes_master')
-            .select()
-            .eq('attivo', true)
-            .or('organization_id.eq.$orgId,organization_id.is.null')
-            .order('ordine', ascending: true);
-      } else {
-        response = await supabase
-            .from('sizes_master')
-            .select()
-            .eq('attivo', true)
-            .order('ordine', ascending: true);
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        throw Exception('Organization context required');
       }
+
+      final response = await supabase
+          .from('sizes_master')
+          .select()
+          .eq('attivo', true)
+          .eq('organization_id', orgId)
+          .order('ordine', ascending: true);
 
       return (response as List)
           .map((json) => SizeVariantModel.fromJson(json))

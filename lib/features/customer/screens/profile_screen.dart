@@ -8,6 +8,7 @@ import '../../../DesignSystem/app_spacing.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/customer_orders_provider.dart';
 import '../../../providers/addresses_provider.dart';
+import '../../../providers/pizzeria_settings_provider.dart';
 import '../widgets/personal_info_sheet.dart';
 import '../widgets/addresses_screen.dart';
 import '../widgets/order_history_sheet.dart';
@@ -23,6 +24,8 @@ class ProfileScreen extends ConsumerWidget {
     final user = ref.watch(authProvider).value;
     final ordersAsync = ref.watch(customerOrdersProvider);
     final stats = ref.watch(customerOrderStatsProvider);
+    final pizzeriaSettings = ref.watch(pizzeriaSettingsProvider);
+    final currentOrgName = pizzeriaSettings.value?.pizzeria.nome;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
@@ -75,6 +78,12 @@ class ProfileScreen extends ConsumerWidget {
                   error: (_, _) => 'Nessun indirizzo salvato',
                 ),
                 onTap: () => _showAddresses(context, user),
+              ),
+              _MenuItem(
+                icon: Icons.storefront_outlined,
+                title: 'Ristorante',
+                subtitle: currentOrgName ?? 'Seleziona il ristorante',
+                onTap: () => context.go(RouteNames.switchOrg),
               ),
             ]),
 

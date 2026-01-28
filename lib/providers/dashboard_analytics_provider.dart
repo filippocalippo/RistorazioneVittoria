@@ -283,22 +283,33 @@ class DashboardAnalyticsNotifier
       // Get organization context for multi-tenant filtering
       final orgId = await _ref.read(currentOrganizationProvider.future);
 
-      // Build base query
-      var query = supabase.from('ordini').select('*, ordini_items(*)');
-
-      // Multi-tenant filter: org-specific or global (null)
-      if (orgId != null) {
-        query = query.or('organization_id.eq.$orgId,organization_id.is.null');
+      // SECURITY: Require organization context to prevent cross-tenant data access
+      if (orgId == null) {
+        Logger.warning('No organization context for dashboard analytics', tag: 'DashboardAnalytics');
+        state = AsyncValue.data(DashboardAnalytics.empty());
+        return;
       }
 
-      final ordersResponse = await query
-          .or(
-            'and(slot_prenotato_start.gte.${startDate.toUtc().toIso8601String()},slot_prenotato_start.lte.${endDate.toUtc().toIso8601String()}),'
-            'and(slot_prenotato_start.is.null,created_at.gte.${startDate.toUtc().toIso8601String()},created_at.lte.${endDate.toUtc().toIso8601String()})',
-          )
-          .order('created_at', ascending: false);
+      // Build base query (strict multi-tenant filter - no .is.null pattern)
+      // Filter for orders with scheduled slot OR orders without scheduled slot
+      final scheduledOrders = await supabase
+          .from('ordini')
+          .select('*, ordini_items(*)')
+          .eq('organization_id', orgId)
+          .gte('slot_prenotato_start', startDate.toUtc().toIso8601String())
+          .lte('slot_prenotato_start', endDate.toUtc().toIso8601String());
 
-      final List<dynamic> ordersData = ordersResponse as List;
+      final unscheduledOrders = await supabase
+          .from('ordini')
+          .select('*, ordini_items(*)')
+          .eq('organization_id', orgId)
+          .filter('slot_prenotato_start', 'is', null)
+          .gte('created_at', startDate.toUtc().toIso8601String())
+          .lte('created_at', endDate.toUtc().toIso8601String());
+
+      final ordersResponse = [...scheduledOrders, ...unscheduledOrders];
+
+      final List<dynamic> ordersData = ordersResponse;
       final List<OrderModel> allOrders = [];
 
       for (final json in ordersData) {
@@ -431,17 +442,26 @@ class DashboardAnalyticsNotifier
       final previousStart = _getPreviousPeriodStart(filter, startDate);
       final previousEnd = _getPreviousPeriodEnd(filter, endDate);
 
-      final previousOrdersResponse = await supabase
+      // Previous period query (strict multi-tenant filter - no .is.null pattern)
+      // Filter for orders with scheduled slot OR orders without scheduled slot
+      final prevScheduled = await supabase
           .from('ordini')
-          .select(
-            'totale, stato, tipo, created_at, completato_at, slot_prenotato_start',
-          )
-          .or(
-            'and(slot_prenotato_start.gte.${previousStart.toUtc().toIso8601String()},slot_prenotato_start.lte.${previousEnd.toUtc().toIso8601String()}),'
-            'and(slot_prenotato_start.is.null,created_at.gte.${previousStart.toUtc().toIso8601String()},created_at.lte.${previousEnd.toUtc().toIso8601String()})',
-          );
+          .select('totale, stato, tipo, created_at, completato_at, slot_prenotato_start')
+          .eq('organization_id', orgId)
+          .gte('slot_prenotato_start', previousStart.toUtc().toIso8601String())
+          .lte('slot_prenotato_start', previousEnd.toUtc().toIso8601String());
 
-      final List<dynamic> previousData = previousOrdersResponse as List;
+      final prevUnscheduled = await supabase
+          .from('ordini')
+          .select('totale, stato, tipo, created_at, completato_at, slot_prenotato_start')
+          .eq('organization_id', orgId)
+          .filter('slot_prenotato_start', 'is', null)
+          .gte('created_at', previousStart.toUtc().toIso8601String())
+          .lte('created_at', previousEnd.toUtc().toIso8601String());
+
+      final previousOrdersResponse = [...prevScheduled, ...prevUnscheduled];
+
+      final List<dynamic> previousData = previousOrdersResponse;
       final previousOrders = previousData
           .where((o) => o['stato'] != 'cancelled')
           .toList();

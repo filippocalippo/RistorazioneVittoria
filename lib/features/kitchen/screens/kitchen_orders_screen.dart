@@ -10,6 +10,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../core/models/order_model.dart';
 import '../../../core/models/order_item_model.dart'; // Extension methods for safe variant access
 import '../../../core/exceptions/app_exceptions.dart';
+import '../../../core/widgets/error_boundary.dart';
 
 /// High-performance kitchen orders screen optimized for 24/7 operation
 /// Features: auto-retry on errors, periodic time updates, debounced actions, crash-safe variant parsing
@@ -70,7 +71,9 @@ class _KitchenOrdersScreenState extends ConsumerState<KitchenOrdersScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
-    return authState.when(
+    return ErrorBoundaryWithLogger(
+      contextTag: 'KitchenOrdersScreen',
+      child: authState.when(
       data: (user) {
         if (user == null) {
           return _buildSessionExpiredState(context);
@@ -146,6 +149,7 @@ class _KitchenOrdersScreenState extends ConsumerState<KitchenOrdersScreen> {
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (error, stack) => _buildAuthErrorState(error),
+    ),
     );
   }
 
