@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 import '../core/models/menu_item_model.dart';
 import '../core/models/cart_item_model.dart';
@@ -63,11 +64,136 @@ class Cart extends _$Cart {
           );
         }).toList();
 
-        state = loadedCart;
+        // Validate cart items against current menu
+        final validatedCart = await _validateCartItems(loadedCart, orgId);
+        state = validatedCart;
       }
     } catch (e) {
       // If loading fails, start with empty cart
+      Logger.warning('Failed to load cart from storage: $e', tag: 'Cart');
       state = [];
+    }
+  }
+
+  /// Validate cart items against current menu
+  /// Removes items that no longer exist or are unavailable
+  /// Updates prices if they've changed
+  Future<List<CartItem>> _validateCartItems(List<CartItem> cartItems, String? orgId) async {
+    if (cartItems.isEmpty) return [];
+    if (orgId == null) {
+      Logger.warning('Cannot validate cart without organization context', tag: 'Cart');
+      return cartItems; // Return as-is if no org context
+    }
+
+    try {
+      // Fetch current menu items from database
+      final client = Supabase.instance.client;
+      final menuItemIds = cartItems.map((item) => item.menuItem.id).toSet().toList();
+
+      final response = await client
+          .from('menu_items')
+          .select('id, nome, prezzo, prezzo_scontato, disponibile, attivo')
+          .inFilter('id', menuItemIds)
+          .eq('organization_id', orgId);
+
+      final currentMenuItems = <String, Map<String, dynamic>>{};
+      for (final item in response) {
+        currentMenuItems[item['id'] as String] = item;
+      }
+
+      final validatedItems = <CartItem>[];
+      final removedItems = <String>[];
+      final updatedItems = <String>[];
+
+      for (final cartItem in cartItems) {
+        final menuData = currentMenuItems[cartItem.menuItem.id];
+
+        // Check if item still exists
+        if (menuData == null) {
+          removedItems.add(cartItem.menuItem.nome);
+          Logger.debug(
+            'Removed cart item: ${cartItem.menuItem.nome} (no longer in menu)',
+            tag: 'Cart',
+          );
+          continue;
+        }
+
+        // Check if item is still available
+        final isAvailable = (menuData['disponibile'] as bool?) ?? true;
+        final isActive = (menuData['attivo'] as bool?) ?? true;
+
+        if (!isAvailable || !isActive) {
+          removedItems.add(cartItem.menuItem.nome);
+          Logger.debug(
+            'Removed cart item: ${cartItem.menuItem.nome} (unavailable or inactive)',
+            tag: 'Cart',
+          );
+          continue;
+        }
+
+        // Check if price has changed
+        final currentPrice = (menuData['prezzo'] as num).toDouble();
+        final currentDiscountedPrice = menuData['prezzo_scontato'] != null
+            ? (menuData['prezzo_scontato'] as num).toDouble()
+            : null;
+        final effectivePrice = currentDiscountedPrice ?? currentPrice;
+
+        // Compare with stored menu item price
+        final storedPrice = cartItem.menuItem.prezzo;
+        final storedDiscountedPrice = cartItem.menuItem.prezzoScontato;
+
+        if (storedPrice != currentPrice || storedDiscountedPrice != currentDiscountedPrice) {
+          // Update the menu item with current prices
+          final updatedMenuItem = cartItem.menuItem.copyWith(
+            prezzo: currentPrice,
+            prezzoScontato: currentDiscountedPrice,
+            nome: menuData['nome'] as String, // Also update name in case it changed
+          );
+
+          // Update cart item base price
+          double newBasePrice = effectivePrice;
+          if (cartItem.cartItem.selectedSize != null) {
+            newBasePrice = cartItem.cartItem.selectedSize!.calculatePrice(effectivePrice);
+          }
+
+          final updatedCartItem = cartItem.cartItem.copyWith(
+            basePrice: newBasePrice,
+          );
+
+          validatedItems.add(CartItem(
+            menuItem: updatedMenuItem,
+            cartItem: updatedCartItem,
+          ));
+
+          updatedItems.add(cartItem.menuItem.nome);
+          Logger.debug(
+            'Updated cart item price: ${cartItem.menuItem.nome} '
+            '(€${storedDiscountedPrice ?? storedPrice} → €$effectivePrice)',
+            tag: 'Cart',
+          );
+        } else {
+          // Item unchanged, keep as-is
+          validatedItems.add(cartItem);
+        }
+      }
+
+      // Log summary if any changes were made
+      if (removedItems.isNotEmpty || updatedItems.isNotEmpty) {
+        Logger.info(
+          'Cart validation complete: ${removedItems.length} items removed, '
+          '${updatedItems.length} items updated',
+          tag: 'Cart',
+        );
+
+        // Save validated cart back to storage
+        _saveToStorage();
+      }
+
+      return validatedItems;
+    } catch (e) {
+      Logger.error('Error validating cart items: $e', tag: 'Cart');
+      // Return original cart if validation fails
+      return cartItems;
     }
   }
 

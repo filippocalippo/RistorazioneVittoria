@@ -1,28 +1,9 @@
 // Supabase Edge Function to place an order with price validation
 // Deploy with: supabase functions deploy place-order
-//
-// Version: 1.0.0
-// Part of Section 8.2 Backend Production Readiness Improvements
-
-// Import shared modules
-import { validateRequestSignature, ValidationErrors } from '../_shared/request-validator.ts'
-import { initSentry, captureException, addBreadcrumb, setUserContext } from '../_shared/sentry.ts'
-import { PerformanceTracker } from '../_shared/performance.ts'
-import { validateClientVersion, registerFunctionVersion } from '../_shared/version.ts'
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// =============================================================================
-// VERSION INFO
-// =============================================================================
-export const FUNCTION_VERSION = '1.0.0'
-export const MIN_CLIENT_VERSION = '1.0.0'
-export const DEPLOYED_DATE = '2026-01-27'
-
-// =============================================================================
-// CONFIGURATION
-// =============================================================================
 const STRIPE_SECRET_KEY: string = Deno.env.get('STRIPE_SECRET_KEY') ?? ''
 const STRIPE_API_VERSION = '2023-10-16'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
@@ -37,10 +18,7 @@ const ALLOWED_ORIGINS = [
     'http://localhost:5173',
 ]
 
-// =============================================================================
-// RATE LIMITING CONFIGURATION
-// =============================================================================
-const RATE_LIMIT_MAX_REQUESTS = 20  // 20 orders per hour per organization
+const RATE_LIMIT_MAX_REQUESTS = 20
 const RATE_LIMIT_WINDOW_MINUTES = 60
 
 interface RateLimitResult {
@@ -49,10 +27,6 @@ interface RateLimitResult {
   reset_at: string
   limit: number
 }
-
-// =============================================================================
-// TYPE DEFINITIONS (matching Dart models)
-// =============================================================================
 
 interface MenuItem {
     id: string
@@ -82,13 +56,11 @@ interface SizeAssignment {
     price_override: number | null
 }
 
-// Matches OrderItemInput from Dart's order_price_models.dart
 interface IngredientSelection {
     ingredientId: string
     quantity: number
 }
 
-// Order item as received from frontend
 interface OrderItemInput {
     menu_item_id: string
     nome_prodotto: string
@@ -100,10 +72,7 @@ interface OrderItemInput {
 }
 
 interface PlaceOrderRequest {
-    organizationId?: string  // Multi-tenant: organization to create order for
-    timestamp?: string     // Request signing timestamp
-    nonce?: string          // Request signing nonce
-    signature?: string      // Request signing signature
+    organizationId?: string
     items: OrderItemInput[]
     orderType: 'delivery' | 'takeaway' | 'dine_in'
     paymentMethod: 'cash' | 'card' | 'online'
@@ -135,16 +104,12 @@ interface PlaceOrderResponse {
     paymentIntentId?: string
 }
 
-// =============================================================================
-// PRICE CALCULATOR (exact port of OrderPriceCalculator.dart)
-// =============================================================================
-
 class OrderPriceCalculator {
     private menuItems: Map<string, MenuItem>
     private sizeAssignments: SizeAssignment[]
-    private sizes: Map<string, number> // id -> price_multiplier
-    private ingredients: Map<string, number> // id -> prezzo
-    private ingredientSizePrices: Map<string, number> // `${ingredientId}_${sizeId}` -> price
+    private sizes: Map<string, number>
+    private ingredients: Map<string, number>
+    private ingredientSizePrices: Map<string, number>
 
     constructor(
         menuItems: MenuItem[],
@@ -162,54 +127,42 @@ class OrderPriceCalculator {
         )
     }
 
-    // Exact port of OrderPriceCalculator._findMenuItem
     private findMenuItem(id: string): MenuItem | null {
         return this.menuItems.get(id) ?? null
     }
 
-    // Exact port of OrderPriceCalculator._calculateBasePrice
     private calculateBasePrice(menuItemId: string, sizeId: string | null): number {
         const menuItem = this.findMenuItem(menuItemId)
         if (!menuItem) return 0
 
-        // Get effective base price (discounted if available)
-        // Matches Dart: menuItem.prezzoEffettivo which is prezzo_scontato ?? prezzo
         const effectivePrice = menuItem.prezzo_scontato ?? menuItem.prezzo
 
-        // If no size selected, return base price
         if (sizeId === null || sizeId === undefined) {
             return effectivePrice
         }
 
-        // Check for product-specific priceOverride first
         const assignment = this.sizeAssignments.find(
             a => a.menu_item_id === menuItemId && a.size_id === sizeId
         )
 
         if (assignment?.price_override !== null && assignment?.price_override !== undefined) {
-            // Use direct override - ignores multiplier
             return assignment.price_override
         }
 
-        // Fall back to size multiplier
         const multiplier = this.sizes.get(sizeId)
         if (multiplier !== undefined) {
             return effectivePrice * multiplier
         }
 
-        // Size not found, return base price
         return effectivePrice
     }
 
-    // Exact port of OrderPriceCalculator._calculateIngredientsCost
     private calculateIngredientsCost(selections: IngredientSelection[], sizeId: string | null): number {
         let total = 0.0
 
         for (const selection of selections) {
             const basePrice = this.ingredients.get(selection.ingredientId)
             if (basePrice !== undefined) {
-                // Use size-specific price if available
-                // Exact port of Dart: ingredient.getPriceForSize(sizeId)
                 let price = basePrice
                 if (sizeId) {
                     const sizeKey = `${selection.ingredientId}_${sizeId}`
@@ -225,7 +178,6 @@ class OrderPriceCalculator {
         return total
     }
 
-    // Exact port of OrderPriceCalculator._calculateSplitItemPrice
     calculateSplitItemPrice(
         firstMenuItemId: string,
         secondMenuItemId: string,
@@ -235,7 +187,6 @@ class OrderPriceCalculator {
         secondAddedIngredients: IngredientSelection[],
         quantity: number
     ): { unitPrice: number; subtotal: number } {
-        // 1. Find both menu items
         const firstItem = this.findMenuItem(firstMenuItemId)
         const secondItem = this.findMenuItem(secondMenuItemId)
 
@@ -243,35 +194,22 @@ class OrderPriceCalculator {
             return { unitPrice: 0, subtotal: 0 }
         }
 
-        // 2. Calculate first product total (base + ingredients)
         const firstBase = this.calculateBasePrice(firstMenuItemId, sizeId)
         const firstIngredients = this.calculateIngredientsCost(firstAddedIngredients, sizeId)
         const firstTotal = firstBase + firstIngredients
 
-        // 3. Calculate second product total (base + ingredients)
         const secondBase = this.calculateBasePrice(secondMenuItemId, secondSizeId)
         const secondIngredients = this.calculateIngredientsCost(secondAddedIngredients, secondSizeId)
         const secondTotal = secondBase + secondIngredients
 
-        console.log(`[SPLIT] First product: base=€${firstBase.toFixed(2)}, ingredients=€${firstIngredients.toFixed(2)} (${firstAddedIngredients.length} items), total=€${firstTotal.toFixed(2)}`)
-        console.log(`[SPLIT] Second product: base=€${secondBase.toFixed(2)}, ingredients=€${secondIngredients.toFixed(2)} (${secondAddedIngredients.length} items), total=€${secondTotal.toFixed(2)}`)
-
-        // 4. Average the two totals
         const rawAverage = (firstTotal + secondTotal) / 2
-
-        // 5. Round UP to nearest €0.50
-        // Exact port of Dart: (rawAverage * 2).ceil() / 2.0
         const roundedUnitPrice = Math.ceil(rawAverage * 2) / 2.0
 
-        console.log(`[SPLIT] Raw average: €${rawAverage.toFixed(2)}, Rounded to €0.50: €${roundedUnitPrice.toFixed(2)}`)
-
-        // 6. Calculate subtotal
         const subtotal = roundedUnitPrice * quantity
 
         return { unitPrice: roundedUnitPrice, subtotal }
     }
 
-    // Exact port of OrderPriceCalculator._calculateRegularItemPrice
     calculateRegularItemPrice(
         menuItemId: string,
         sizeId: string | null,
@@ -283,25 +221,15 @@ class OrderPriceCalculator {
             return { unitPrice: 0, subtotal: 0 }
         }
 
-        // Calculate base price (with size if applicable)
         const basePrice = this.calculateBasePrice(menuItemId, sizeId)
-
-        // Calculate ingredients cost
         const ingredientsCost = this.calculateIngredientsCost(addedIngredients, sizeId)
 
-        // Calculate final prices
         const unitPrice = basePrice + ingredientsCost
         const subtotal = unitPrice * quantity
-
-        console.log(`[REGULAR] base=€${basePrice.toFixed(2)}, ingredients=€${ingredientsCost.toFixed(2)} (${addedIngredients.length} items), unitPrice=€${unitPrice.toFixed(2)}`)
 
         return { unitPrice, subtotal }
     }
 }
-
-// =============================================================================
-// PRICE VALIDATION (using the calculator class above)
-// =============================================================================
 
 async function validateAndCorrectPrices(
     supabaseAdmin: ReturnType<typeof createClient>,
@@ -310,7 +238,6 @@ async function validateAndCorrectPrices(
 ): Promise<{ items: OrderItemInput[]; corrected: boolean }> {
     console.log(`[VALIDATION] Checking ${items.length} items for price corrections`)
 
-    // Collect all IDs we need
     const menuItemIds = new Set<string>()
     const sizeIds = new Set<string>()
     const ingredientIds = new Set<string>()
@@ -330,14 +257,10 @@ async function validateAndCorrectPrices(
         }
     }
 
-    console.log(`[VALIDATION] Fetching: ${menuItemIds.size} menu items, ${sizeIds.size} sizes, ${ingredientIds.size} ingredients`)
-
-    // SECURITY: Require organization context to prevent cross-tenant data access
     if (!organizationId) {
         throw new Error('Organization context required for price validation')
     }
 
-    // Fetch all required data from database (no .is.null - strict tenant isolation)
     const { data: menuItems } = await supabaseAdmin
         .from('menu_items')
         .select('id, prezzo, prezzo_scontato')
@@ -385,9 +308,6 @@ async function validateAndCorrectPrices(
         }
     }
 
-    console.log(`[VALIDATION] Loaded: ${menuItems?.length || 0} menu items, ${sizes.length} sizes, ${ingredients.length} ingredients, ${ingredientSizePrices.length} ingredient size prices`)
-
-    // Create calculator instance (exact port of OrderPriceCalculator)
     const calculator = new OrderPriceCalculator(
         menuItems || [],
         sizeAssignments,
@@ -396,7 +316,6 @@ async function validateAndCorrectPrices(
         ingredientSizePrices
     )
 
-    // Calculate and correct each item
     const correctedItems: OrderItemInput[] = []
     let hasCorrections = false
 
@@ -408,13 +327,6 @@ async function validateAndCorrectPrices(
         let expectedSubtotal = 0
 
         if (variants.isSplit && variants.secondProduct?.id) {
-            // SPLIT PRODUCT
-            console.log(`[SPLIT] Processing: ${item.nome_prodotto}`)
-            console.log(`[SPLIT] First product ID: ${item.menu_item_id}`)
-            console.log(`[SPLIT] Second product ID: ${variants.secondProduct.id}`)
-            console.log(`[SPLIT] Second product name: ${variants.secondProduct.name}`)
-
-            // Parse added ingredients and split them between first and second product
             const allIngredients = variants.addedIngredients || []
             const secondProductName = variants.secondProduct.name || ''
 
@@ -428,13 +340,11 @@ async function validateAndCorrectPrices(
                         ingredientId: ing.id,
                         quantity: ing.quantity || 1
                     })
-                    console.log(`[SPLIT] Ingredient "${ingName}" -> SECOND product`)
                 } else {
                     firstProductIngredients.push({
                         ingredientId: ing.id,
                         quantity: ing.quantity || 1
                     })
-                    console.log(`[SPLIT] Ingredient "${ingName}" -> FIRST product`)
                 }
             }
 
@@ -442,7 +352,7 @@ async function validateAndCorrectPrices(
                 item.menu_item_id,
                 variants.secondProduct.id,
                 sizeId,
-                sizeId, // secondSizeId - same as first in current implementation
+                sizeId,
                 firstProductIngredients,
                 secondProductIngredients,
                 item.quantita
@@ -450,10 +360,6 @@ async function validateAndCorrectPrices(
             expectedUnitPrice = result.unitPrice
             expectedSubtotal = result.subtotal
         } else {
-            // REGULAR PRODUCT
-            console.log(`[REGULAR] Processing: ${item.nome_prodotto}`)
-
-            // Map variants.addedIngredients to IngredientSelection[]
             const addedIngredients: IngredientSelection[] = (variants.addedIngredients || []).map((ing: any) => ({
                 ingredientId: ing.id,
                 quantity: ing.quantity || 1
@@ -469,7 +375,6 @@ async function validateAndCorrectPrices(
             expectedSubtotal = result.subtotal
         }
 
-        // Check for price mismatch
         const priceDiff = Math.abs(expectedUnitPrice - item.prezzo_unitario)
         const subtotalDiff = Math.abs(expectedSubtotal - item.subtotale)
 
@@ -478,11 +383,8 @@ async function validateAndCorrectPrices(
             console.log(`  Client unit price: €${item.prezzo_unitario.toFixed(2)} -> Server: €${expectedUnitPrice.toFixed(2)}`)
             console.log(`  Client subtotal: €${item.subtotale.toFixed(2)} -> Server: €${expectedSubtotal.toFixed(2)}`)
             hasCorrections = true
-        } else {
-            console.log(`[VALIDATION] Price OK for ${item.nome_prodotto}: €${expectedUnitPrice.toFixed(2)}`)
         }
 
-        // Always use server-calculated price
         correctedItems.push({
             ...item,
             prezzo_unitario: expectedUnitPrice,
@@ -490,18 +392,8 @@ async function validateAndCorrectPrices(
         })
     }
 
-    if (hasCorrections) {
-        console.log(`[VALIDATION] Corrected prices for some items`)
-    } else {
-        console.log('[VALIDATION] All prices valid, no corrections needed')
-    }
-
     return { items: correctedItems, corrected: hasCorrections }
 }
-
-// =============================================================================
-// STRIPE PAYMENT INTENT
-// =============================================================================
 
 async function createPaymentIntent(
     amount: number,
@@ -543,10 +435,6 @@ async function createPaymentIntent(
     return await response.json()
 }
 
-// =============================================================================
-// CORS HANDLING
-// =============================================================================
-
 function getCorsHeaders(req: Request): Record<string, string> {
     const origin = req.headers.get('origin') ?? ''
     const isAllowed = ALLOWED_ORIGINS.some(allowed => {
@@ -559,30 +447,18 @@ function getCorsHeaders(req: Request): Record<string, string> {
 
     return {
         'Access-Control-Allow-Origin': isAllowed ? origin : ALLOWED_ORIGINS[0],
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-version, x-platform',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-platform',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
     }
 }
 
-// =============================================================================
-// MAIN HANDLER
-// =============================================================================
-
 serve(async (req: Request) => {
-    // Track overall function performance
-    const perfTracker = new PerformanceTracker('place-order', { function: 'place-order' })
-
-    // Initialize Sentry for error tracking
-    initSentry()
-
     const corsHeaders = getCorsHeaders(req)
     if (req.method === 'OPTIONS') {
-        perfTracker.end()
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        // Validate Stripe secret key is configured
         if (!STRIPE_SECRET_KEY) {
             console.error('STRIPE_SECRET_KEY not configured')
             throw new Error('Payment service temporarily unavailable')
@@ -592,12 +468,6 @@ serve(async (req: Request) => {
         const authHeader = req.headers.get('Authorization')
         if (!authHeader) throw new Error('Authentication required')
 
-        // Get client version for compatibility check
-        const clientVersion = req.headers.get('X-Client-Version')
-        if (clientVersion) {
-            addBreadcrumb('client', 'Client version check', { version: clientVersion })
-        }
-
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
         const supabaseClient = createClient(
             SUPABASE_URL,
@@ -605,15 +475,10 @@ serve(async (req: Request) => {
             { global: { headers: { Authorization: authHeader } } }
         )
 
-        // Get the authenticated user
         const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
         if (userError || !user) throw new Error('Authentication failed')
 
-        // Set user context in Sentry
-        setUserContext(user.id, user.email)
-
-        // Get organization ID
-        let organizationId = body.organizationId || body.organizationId
+        let organizationId = body.organizationId
         if (!organizationId) {
             const { data: profile } = await supabaseAdmin
                 .from('profiles')
@@ -624,16 +489,10 @@ serve(async (req: Request) => {
             organizationId = profile?.current_organization_id
         }
 
-        // SECURITY: Require organization context - no fallback to random org
         if (!organizationId) {
-            addBreadcrumb('security', 'Organization context missing', {
-                userId: user.id,
-                hasBodyOrgId: !!body.organizationId
-            }, 'error')
             throw new Error('Organization context required. Please select a restaurant before placing an order.')
         }
 
-        // Verify user is actually a member of this organization
         const { data: membership, error: memberError } = await supabaseAdmin
             .from('organization_members')
             .select('id, is_active, role')
@@ -646,51 +505,10 @@ serve(async (req: Request) => {
         }
 
         if (!membership || !membership.is_active) {
-            addBreadcrumb('security', 'User not member of organization', {
-                userId: user.id,
-                organizationId,
-                membership: membership ? 'inactive' : 'none'
-            }, 'error')
             throw new Error('You are not a member of this organization. Please join the restaurant first.')
         }
 
-        // =========================================================================
-        // VERSION COMPATIBILITY CHECK
-        // =========================================================================
-        if (clientVersion) {
-            const compatResult = await validateClientVersion('place-order', clientVersion)
-            if (!compatResult.valid && compatResult.response) {
-                perfTracker.end({ status: 'upgrade_required' })
-                return compatResult.response
-            }
-        }
-
-        // =========================================================================
-        // REQUEST SIGNING VALIDATION
-        // =========================================================================
-        const signaturePerf = new PerformanceTracker('signature_validation')
-        if (body.timestamp && body.nonce && body.signature) {
-            const validationResult = await validateRequestSignature(
-                req,
-                body,
-                organizationId
-            )
-
-            if (!validationResult.valid) {
-                signaturePerf.end({ valid: false, error: validationResult.error_code })
-                console.warn(`[Signature] ${validationResult.error}`)
-
-                // Don't block requests without signature for backward compatibility
-                // Log the warning and continue
-            } else {
-                console.log('[Signature] Valid signature verified')
-            }
-        }
-        signaturePerf.end()
-
-        // =========================================================================
-        // RATE LIMITING: Check if organization has exceeded order rate limit
-        // =========================================================================
+        // Rate limiting
         const { data: rateLimit, error: rateLimitError } = await supabaseClient.rpc('check_rate_limit', {
             p_identifier: organizationId,
             p_endpoint: 'place-order',
@@ -700,7 +518,6 @@ serve(async (req: Request) => {
 
         if (rateLimitError) {
             console.error('Rate limit check error:', rateLimitError)
-            // Continue on error (fail open for reliability)
         } else if (rateLimit && !(rateLimit as RateLimitResult).allowed) {
             const limitResult = rateLimit as RateLimitResult
             const resetDate = new Date(limitResult.reset_at)
@@ -720,13 +537,6 @@ serve(async (req: Request) => {
                 },
             })
         }
-
-        const { data: membership } = await supabaseAdmin
-            .from('organization_members')
-            .select('role, is_active')
-            .eq('organization_id', organizationId)
-            .eq('user_id', user.id)
-            .maybeSingle()
 
         const { data: profile } = await supabaseAdmin
             .from('profiles')
@@ -750,13 +560,8 @@ serve(async (req: Request) => {
 
         console.log(`[ORDER] User: ${user.email}, Staff: ${isStaff}, Org: ${organizationId}, Items: ${body.items.length}`)
 
-        // VALIDATE AND CORRECT PRICES - Always validate, use server prices if mismatch found
-        const priceCheckPerf = new PerformanceTracker('price_validation')
+        // VALIDATE AND CORRECT PRICES
         const priceCheck = await validateAndCorrectPrices(supabaseAdmin, body.items, organizationId)
-        priceCheckPerf.end({
-            items_validated: priceCheck.items.length,
-            corrections_made: priceCheck.corrected
-        })
         const correctedItems = priceCheck.items
 
         if (priceCheck.corrected) {
@@ -773,8 +578,6 @@ serve(async (req: Request) => {
 
         // CREATE OR UPDATE ORDER
         const isUpdate = !!body.orderId
-
-        const orderPerf = new PerformanceTracker('order_crud')
 
         let order: any
 
@@ -828,7 +631,6 @@ serve(async (req: Request) => {
                 throw new Error('Failed to update order')
             }
 
-            // Delete old items and insert new ones
             await supabaseAdmin
                 .from('ordini_items')
                 .delete()
@@ -893,7 +695,6 @@ serve(async (req: Request) => {
                 throw new Error('Failed to create order')
             }
 
-            // Insert items with server-corrected prices
             const itemsWithOrderId = correctedItems.map(item => ({
                 ...item,
                 ordine_id: newOrder.id,
@@ -913,8 +714,6 @@ serve(async (req: Request) => {
             console.log(`[ORDER] Created order ${order.id}`)
         }
 
-        orderPerf.end({ order_type: isUpdate ? 'update' : 'create' })
-
         // HANDLE PAYMENT
         let response: PlaceOrderResponse = {
             success: true,
@@ -923,7 +722,6 @@ serve(async (req: Request) => {
         }
 
         if (body.paymentMethod === 'card' && !isStaff) {
-            const stripePerf = new PerformanceTracker('stripe_payment_intent')
             const amountInCents = Math.round(total * 100)
             if (amountInCents < 50) throw new Error('Amount too small for card payment')
 
@@ -938,19 +736,9 @@ serve(async (req: Request) => {
                 }
             )
 
-            stripePerf.end({ amount: amountInCents })
-
             response.clientSecret = paymentIntent.client_secret
             response.paymentIntentId = paymentIntent.id
         }
-
-        // Complete performance tracking
-        perfTracker.end({
-            success: true,
-            organization_id: organizationId,
-            user_id: user.id,
-            items_count: body.items.length
-        })
 
         return new Response(
             JSON.stringify(response),
@@ -960,18 +748,6 @@ serve(async (req: Request) => {
     } catch (err) {
         const error = err as Error
         console.error('Error placing order:', error)
-
-        // Capture exception in Sentry with context
-        captureException(error, {
-            function: 'place-order',
-            timestamp: new Date().toISOString(),
-        })
-
-        // Complete performance tracking with error
-        perfTracker.end({
-            success: false,
-            error: error.message
-        })
 
         return new Response(
             JSON.stringify({ error: error.message, code: 'order_error' }),

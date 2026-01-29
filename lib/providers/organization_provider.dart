@@ -26,7 +26,25 @@ class CurrentOrganization extends _$CurrentOrganization {
           .eq('id', userId)
           .maybeSingle();
 
-      final orgId = response?['current_organization_id'] as String?;
+      var orgId = response?['current_organization_id'] as String?;
+      
+      // Validate organization exists and user is still a member
+      if (orgId != null) {
+        final isValid = await _validateOrganizationMembership(orgId, userId);
+        if (!isValid) {
+          Logger.warning(
+            'Organization $orgId not valid for user $userId, clearing context',
+            tag: 'OrganizationProvider',
+          );
+          // Clear invalid organization context
+          await client
+              .from('profiles')
+              .update({'current_organization_id': null})
+              .eq('id', userId);
+          orgId = null;
+        }
+      }
+      
       if (orgId != null) return orgId;
 
       // Fallback: get first organization user belongs to
@@ -48,7 +66,60 @@ class CurrentOrganization extends _$CurrentOrganization {
       }
       return null;
     } catch (e) {
+      Logger.error('Error building organization context: $e', tag: 'OrganizationProvider');
       return null;
+    }
+  }
+  
+  /// Validate that organization exists, is active, and user is a member
+  Future<bool> _validateOrganizationMembership(String orgId, String userId) async {
+    final client = Supabase.instance.client;
+    
+    try {
+      // Check organization exists and is active
+      final orgResponse = await client
+          .from('organizations')
+          .select('id, is_active, deleted_at')
+          .eq('id', orgId)
+          .maybeSingle();
+      
+      if (orgResponse == null) {
+        Logger.debug('Organization $orgId not found', tag: 'OrganizationProvider');
+        return false;
+      }
+      
+      if (orgResponse['is_active'] != true) {
+        Logger.debug('Organization $orgId is not active', tag: 'OrganizationProvider');
+        return false;
+      }
+      
+      if (orgResponse['deleted_at'] != null) {
+        Logger.debug('Organization $orgId is deleted', tag: 'OrganizationProvider');
+        return false;
+      }
+      
+      // Check user is still a member
+      final memberResponse = await client
+          .from('organization_members')
+          .select('id, is_active')
+          .eq('organization_id', orgId)
+          .eq('user_id', userId)
+          .maybeSingle();
+      
+      if (memberResponse == null) {
+        Logger.debug('User $userId is not a member of org $orgId', tag: 'OrganizationProvider');
+        return false;
+      }
+      
+      if (memberResponse['is_active'] != true) {
+        Logger.debug('User $userId membership in org $orgId is not active', tag: 'OrganizationProvider');
+        return false;
+      }
+      
+      return true;
+    } catch (e) {
+      Logger.error('Error validating organization membership: $e', tag: 'OrganizationProvider');
+      return false;
     }
   }
 
