@@ -11,16 +11,14 @@ part 'ingredients_provider.g.dart';
 class Ingredients extends _$Ingredients {
   @override
   Future<List<IngredientModel>> build() async {
-    return _fetchIngredients();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    return _fetchIngredients(orgId);
   }
 
-  Future<List<IngredientModel>> _fetchIngredients() async {
+  Future<List<IngredientModel>> _fetchIngredients(String? orgId) async {
     final supabase = Supabase.instance.client;
 
     try {
-      // Get current organization ID
-      final orgId = await ref.read(currentOrganizationProvider.future);
-
       // SECURITY: Require organization context to prevent cross-tenant data access
       if (orgId == null) {
         throw Exception('Organization context required');
@@ -74,7 +72,7 @@ class Ingredients extends _$Ingredients {
       }
 
       // Refresh the ingredients list
-      state = AsyncValue.data(await _fetchIngredients());
+      state = AsyncValue.data(await _fetchIngredients(orgId));
     } catch (e) {
       throw Exception('Failed to update size prices: $e');
     }
@@ -96,7 +94,7 @@ class Ingredients extends _$Ingredients {
       await supabase.from('ingredients').insert(data);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchIngredients());
+      state = AsyncValue.data(await _fetchIngredients(orgId));
 
       // Force invalidate grouped menu items to refresh product filtering
       ref.invalidate(groupedMenuItemsProvider);
@@ -130,7 +128,7 @@ class Ingredients extends _$Ingredients {
       await supabase.from('ingredients').insert(cleanedData);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchIngredients());
+      state = AsyncValue.data(await _fetchIngredients(orgId));
 
       // Force invalidate grouped menu items to refresh product filtering
       ref.invalidate(groupedMenuItemsProvider);
@@ -143,6 +141,7 @@ class Ingredients extends _$Ingredients {
   /// Update an existing ingredient
   Future<void> updateIngredient(String id, Map<String, dynamic> data) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     // Remove joined data that isn't a column in the ingredients table
     final cleanData = Map<String, dynamic>.from(data);
@@ -152,7 +151,7 @@ class Ingredients extends _$Ingredients {
       await supabase.from('ingredients').update(cleanData).eq('id', id);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchIngredients());
+      state = AsyncValue.data(await _fetchIngredients(orgId));
 
       // Force invalidate grouped menu items to refresh product filtering
       ref.invalidate(groupedMenuItemsProvider);
@@ -165,12 +164,13 @@ class Ingredients extends _$Ingredients {
   /// Delete an ingredient
   Future<void> deleteIngredient(String id) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase.from('ingredients').delete().eq('id', id);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchIngredients());
+      state = AsyncValue.data(await _fetchIngredients(orgId));
 
       // Force invalidate grouped menu items to refresh product filtering
       ref.invalidate(groupedMenuItemsProvider);
@@ -183,6 +183,7 @@ class Ingredients extends _$Ingredients {
   /// Toggle ingredient active status
   Future<void> toggleActive(String id, bool isActive) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase
@@ -191,7 +192,7 @@ class Ingredients extends _$Ingredients {
           .eq('id', id);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchIngredients());
+      state = AsyncValue.data(await _fetchIngredients(orgId));
 
       // Force invalidate grouped menu items to refresh product filtering
       // This ensures updates are reflected immediately when ingredient status changes

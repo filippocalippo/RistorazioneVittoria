@@ -1,54 +1,45 @@
 import 'organization_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/category_model.dart';
 
-final categoriesProvider =
-    StateNotifierProvider<CategoriesNotifier, AsyncValue<List<CategoryModel>>>((
-      ref,
-    ) {
-      return CategoriesNotifier(ref);
-    });
+part 'categories_provider.g.dart';
 
-class CategoriesNotifier
-    extends StateNotifier<AsyncValue<List<CategoryModel>>> {
-  final Ref ref;
-  final _supabase = Supabase.instance.client;
-
-  CategoriesNotifier(this.ref) : super(const AsyncValue.loading()) {
-    _loadCategories();
+@riverpod
+class Categories extends _$Categories {
+  @override
+  Future<List<CategoryModel>> build() async {
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    return _fetchCategories(orgId);
   }
 
-  Future<void> _loadCategories() async {
-    try {
-      // Get current organization ID
-      final orgId = await ref.read(currentOrganizationProvider.future);
+  Future<List<CategoryModel>> _fetchCategories(String? orgId) async {
+    final supabase = Supabase.instance.client;
 
+    try {
       // SECURITY: Require organization context to prevent cross-tenant data access
       if (orgId == null) {
         throw Exception('Organization context required');
       }
 
       // Build query with strict multi-tenant filter (no .is.null pattern)
-      final response = await _supabase
+      final response = await supabase
           .from('categorie_menu')
           .select()
           .eq('organization_id', orgId)
           .order('ordine', ascending: true);
 
-      final categories = (response as List)
+      return (response as List)
           .map((json) => CategoryModel.fromJson(json))
           .toList();
-
-      state = AsyncValue.data(categories);
-    } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
+    } catch (e) {
+      throw Exception('Failed to load categories: $e');
     }
   }
 
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
-    await _loadCategories();
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    state = AsyncValue.data(await _fetchCategories(orgId));
   }
 
   Future<void> createCategory({
@@ -61,14 +52,14 @@ class CategoriesNotifier
     List<String>? giorniDisattivazione,
     bool permittiDivisioni = true,
   }) async {
+    final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
+
     try {
       final categories = state.value ?? [];
       final maxOrdine = categories.isEmpty
           ? 0
           : categories.map((c) => c.ordine).reduce((a, b) => a > b ? a : b);
-
-      // Get current organization ID
-      final orgId = await ref.read(currentOrganizationProvider.future);
 
       final categoryData = {
         'nome': nome,
@@ -84,7 +75,7 @@ class CategoriesNotifier
         'organization_id': orgId, // Multi-tenant
       };
 
-      await _supabase.from('categorie_menu').insert(categoryData);
+      await supabase.from('categorie_menu').insert(categoryData);
 
       await refresh();
     } catch (e) {
@@ -103,6 +94,8 @@ class CategoriesNotifier
     List<String>? giorniDisattivazione,
     bool? permittiDivisioni,
   }) async {
+    final supabase = Supabase.instance.client;
+
     try {
       final updateData = <String, dynamic>{
         'nome': nome,
@@ -126,7 +119,7 @@ class CategoriesNotifier
         updateData['permetti_divisioni'] = permittiDivisioni;
       }
 
-      await _supabase.from('categorie_menu').update(updateData).eq('id', id);
+      await supabase.from('categorie_menu').update(updateData).eq('id', id);
 
       await refresh();
     } catch (e) {
@@ -135,8 +128,10 @@ class CategoriesNotifier
   }
 
   Future<void> deleteCategory(String id) async {
+    final supabase = Supabase.instance.client;
+
     try {
-      await _supabase.from('categorie_menu').delete().eq('id', id);
+      await supabase.from('categorie_menu').delete().eq('id', id);
       await refresh();
     } catch (e) {
       rethrow;
@@ -144,8 +139,10 @@ class CategoriesNotifier
   }
 
   Future<void> toggleActive(String id, bool attiva) async {
+    final supabase = Supabase.instance.client;
+
     try {
-      await _supabase
+      await supabase
           .from('categorie_menu')
           .update({
             'attiva': attiva,
@@ -162,6 +159,8 @@ class CategoriesNotifier
   Future<void> reorderCategories(
     List<CategoryModel> reorderedCategories,
   ) async {
+    final supabase = Supabase.instance.client;
+
     try {
       final now = DateTime.now().toIso8601String();
       final updates = <Map<String, dynamic>>[
@@ -170,7 +169,7 @@ class CategoriesNotifier
       ];
 
       if (updates.isNotEmpty) {
-        await _supabase
+        await supabase
             .from('categorie_menu')
             .upsert(updates, onConflict: 'id');
       }
@@ -183,8 +182,10 @@ class CategoriesNotifier
 
   // Method to manually trigger deactivation check
   Future<void> checkScheduledDeactivation() async {
+    final supabase = Supabase.instance.client;
+
     try {
-      await _supabase.rpc('check_and_deactivate_categories');
+      await supabase.rpc('check_and_deactivate_categories');
       await refresh();
     } catch (e) {
       rethrow;

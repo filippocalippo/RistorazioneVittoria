@@ -1,6 +1,5 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
@@ -35,6 +34,7 @@ class CartItem {
   }
 }
 
+/// Cart Provider - properly watches organization changes
 @riverpod
 class Cart extends _$Cart {
   /// Get organization-scoped storage key
@@ -43,14 +43,13 @@ class Cart extends _$Cart {
   }
 
   @override
-  List<CartItem> build() {
-    // Get current org ID to scope storage
-    final orgId = ref.read(currentOrganizationProvider).value;
-    _loadFromStorage(orgId);
-    return [];
+  Future<List<CartItem>> build() async {
+    // CRITICAL FIX: Watch organization provider to react to changes
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    return await _loadFromStorage(orgId);
   }
 
-  Future<void> _loadFromStorage(String? orgId) async {
+  Future<List<CartItem>> _loadFromStorage(String? orgId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cartJson = prefs.getString(_getStorageKey(orgId));
@@ -66,12 +65,13 @@ class Cart extends _$Cart {
 
         // Validate cart items against current menu
         final validatedCart = await _validateCartItems(loadedCart, orgId);
-        state = validatedCart;
+        return validatedCart;
       }
+      return [];
     } catch (e) {
       // If loading fails, start with empty cart
       Logger.warning('Failed to load cart from storage: $e', tag: 'Cart');
-      state = [];
+      return [];
     }
   }
 
@@ -186,7 +186,7 @@ class Cart extends _$Cart {
         );
 
         // Save validated cart back to storage
-        _saveToStorage();
+        _saveToStorage(validatedItems, orgId);
       }
 
       return validatedItems;
@@ -197,11 +197,10 @@ class Cart extends _$Cart {
     }
   }
 
-  Future<void> _saveToStorage() async {
+  Future<void> _saveToStorage(List<CartItem> cartItems, String? orgId) async {
     try {
-      final orgId = ref.read(currentOrganizationProvider).value;
       final prefs = await SharedPreferences.getInstance();
-      final cartData = state
+      final cartData = cartItems
           .map(
             (item) => {
               'menuItem': item.menuItem.toJson(),
@@ -219,18 +218,19 @@ class Cart extends _$Cart {
   /// Clear cart for organization switch.
   /// Called when user switches to a different organization.
   Future<void> clearForOrganization(String? newOrgId) async {
-    state = [];
     final prefs = await SharedPreferences.getInstance();
 
     // Clear legacy storage key (cleanup from before org-scoped cart)
     await prefs.remove('cart_items');
 
-    // The new org's cart will load on next build via _loadFromStorage
-    Logger.debug('Cart cleared for org switch to: $newOrgId', tag: 'Cart');
+    // Load new org's cart
+    final loaded = await _loadFromStorage(newOrgId);
+    state = AsyncValue.data(loaded);
+    Logger.debug('Cart cleared and reloaded for org switch to: $newOrgId', tag: 'Cart');
   }
 
   /// Add item without customizations (backward compatibility)
-  void addItem(MenuItemModel menuItem, {int quantity = 1, String? note}) {
+  Future<void> addItem(MenuItemModel menuItem, {int quantity = 1, String? note}) async {
     final cartItemModel = CartItemModel(
       menuItemId: menuItem.id,
       nome: menuItem.nome,
@@ -239,28 +239,33 @@ class Cart extends _$Cart {
       note: note,
     );
 
-    final existingIndex = state.indexWhere(
+    final currentCart = state.value ?? [];
+    final existingIndex = currentCart.indexWhere(
       (item) =>
           item.menuItem.id == menuItem.id &&
           item.cartItem.hasSameCustomizations(cartItemModel),
     );
 
+    List<CartItem> newCart;
     if (existingIndex >= 0) {
       // Update existing quantity
-      final existing = state[existingIndex];
+      final existing = currentCart[existingIndex];
       final updatedCartItem = existing.cartItem.copyWith(
         quantity: existing.cartItem.quantity + quantity,
       );
-      state = [
-        ...state.sublist(0, existingIndex),
+      newCart = [
+        ...currentCart.sublist(0, existingIndex),
         existing.copyWith(cartItem: updatedCartItem),
-        ...state.sublist(existingIndex + 1),
+        ...currentCart.sublist(existingIndex + 1),
       ];
     } else {
       // Add new item
-      state = [...state, CartItem(menuItem: menuItem, cartItem: cartItemModel)];
+      newCart = [...currentCart, CartItem(menuItem: menuItem, cartItem: cartItemModel)];
     }
-    _saveToStorage();
+
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   double _calculateSplitBasePrice(
@@ -286,7 +291,7 @@ class Cart extends _$Cart {
   /// [effectiveBasePrice] - If provided, uses this as the base price (already includes size pricing).
   ///                        This should be used when the caller has access to MenuItemSizeAssignmentModel
   ///                        which may have a priceOverride.
-  void addItemWithCustomization(
+  Future<void> addItemWithCustomization(
     MenuItemModel menuItem, {
     required int quantity,
     SizeVariantModel? selectedSize,
@@ -294,7 +299,7 @@ class Cart extends _$Cart {
     List<IngredientModel>? removedIngredients,
     String? note,
     double? effectiveBasePrice,
-  }) {
+  }) async {
     // Use provided effectiveBasePrice if available, otherwise calculate from size
     double basePrice = effectiveBasePrice ?? menuItem.prezzoEffettivo;
     if (effectiveBasePrice == null && selectedSize != null) {
@@ -312,101 +317,122 @@ class Cart extends _$Cart {
       note: note,
     );
 
+    final currentCart = state.value ?? [];
+
     // Check if an identical item exists (same customizations)
-    final existingIndex = state.indexWhere(
+    final existingIndex = currentCart.indexWhere(
       (item) =>
           item.menuItem.id == menuItem.id &&
           item.cartItem.hasSameCustomizations(cartItemModel),
     );
 
+    List<CartItem> newCart;
     if (existingIndex >= 0) {
       // Update existing quantity
-      final existing = state[existingIndex];
+      final existing = currentCart[existingIndex];
       final updatedCartItem = existing.cartItem.copyWith(
         quantity: existing.cartItem.quantity + quantity,
       );
-      state = [
-        ...state.sublist(0, existingIndex),
+      newCart = [
+        ...currentCart.sublist(0, existingIndex),
         existing.copyWith(cartItem: updatedCartItem),
-        ...state.sublist(existingIndex + 1),
+        ...currentCart.sublist(existingIndex + 1),
       ];
     } else {
       // Add new item with customizations
-      state = [...state, CartItem(menuItem: menuItem, cartItem: cartItemModel)];
+      newCart = [
+        ...currentCart,
+        CartItem(menuItem: menuItem, cartItem: cartItemModel)
+      ];
     }
-    _saveToStorage();
+
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   /// Remove specific cart item by index
-  void removeItemAtIndex(int index) {
-    if (index >= 0 && index < state.length) {
-      state = [...state.sublist(0, index), ...state.sublist(index + 1)];
-      _saveToStorage();
+  Future<void> removeItemAtIndex(int index) async {
+    final currentCart = state.value ?? [];
+    if (index >= 0 && index < currentCart.length) {
+      final newCart = [
+        ...currentCart.sublist(0, index),
+        ...currentCart.sublist(index + 1)
+      ];
+      state = AsyncValue.data(newCart);
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      await _saveToStorage(newCart, orgId);
     }
   }
 
   /// Remove all items with the given menuItemId (backward compatibility)
-  void removeItem(String menuItemId) {
-    state = state.where((item) => item.menuItem.id != menuItemId).toList();
-    _saveToStorage();
+  Future<void> removeItem(String menuItemId) async {
+    final currentCart = state.value ?? [];
+    final newCart = currentCart.where((item) => item.menuItem.id != menuItemId).toList();
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   /// Update quantity for a specific cart item by index
-  void updateQuantityAtIndex(int index, int quantity) {
-    if (index < 0 || index >= state.length) return;
+  Future<void> updateQuantityAtIndex(int index, int quantity) async {
+    final currentCart = state.value ?? [];
+    if (index < 0 || index >= currentCart.length) return;
 
     if (quantity <= 0) {
-      removeItemAtIndex(index);
+      await removeItemAtIndex(index);
       return;
     }
 
-    final updatedCartItem = state[index].cartItem.copyWith(quantity: quantity);
-    state = [
-      ...state.sublist(0, index),
-      state[index].copyWith(cartItem: updatedCartItem),
-      ...state.sublist(index + 1),
+    final updatedCartItem = currentCart[index].cartItem.copyWith(quantity: quantity);
+    final newCart = [
+      ...currentCart.sublist(0, index),
+      currentCart[index].copyWith(cartItem: updatedCartItem),
+      ...currentCart.sublist(index + 1),
     ];
-    _saveToStorage();
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   /// Update quantity for first item with menuItemId (backward compatibility)
-  void updateQuantity(String menuItemId, int quantity) {
-    if (quantity <= 0) {
-      removeItem(menuItemId);
-      return;
-    }
-
-    final index = state.indexWhere((item) => item.menuItem.id == menuItemId);
+  Future<void> updateQuantity(String menuItemId, int quantity) async {
+    final currentCart = state.value ?? [];
+    final index = currentCart.indexWhere((item) => item.menuItem.id == menuItemId);
     if (index >= 0) {
-      updateQuantityAtIndex(index, quantity);
+      await updateQuantityAtIndex(index, quantity);
     }
   }
 
   /// Update note for specific cart item by index
-  void updateNoteAtIndex(int index, String? note) {
-    if (index < 0 || index >= state.length) return;
+  Future<void> updateNoteAtIndex(int index, String? note) async {
+    final currentCart = state.value ?? [];
+    if (index < 0 || index >= currentCart.length) return;
 
-    final updatedCartItem = state[index].cartItem.copyWith(note: note);
-    state = [
-      ...state.sublist(0, index),
-      state[index].copyWith(cartItem: updatedCartItem),
-      ...state.sublist(index + 1),
+    final updatedCartItem = currentCart[index].cartItem.copyWith(note: note);
+    final newCart = [
+      ...currentCart.sublist(0, index),
+      currentCart[index].copyWith(cartItem: updatedCartItem),
+      ...currentCart.sublist(index + 1),
     ];
-    _saveToStorage();
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   /// Update note for first item with menuItemId (backward compatibility)
-  void updateNote(String menuItemId, String? note) {
-    final index = state.indexWhere((item) => item.menuItem.id == menuItemId);
+  Future<void> updateNote(String menuItemId, String? note) async {
+    final currentCart = state.value ?? [];
+    final index = currentCart.indexWhere((item) => item.menuItem.id == menuItemId);
     if (index >= 0) {
-      updateNoteAtIndex(index, note);
+      await updateNoteAtIndex(index, note);
     }
   }
 
   /// Replace an item at a specific index with new customizations
   ///
   /// [effectiveBasePrice] - If provided, uses this as the base price (already includes size pricing).
-  void replaceItemAtIndex(
+  Future<void> replaceItemAtIndex(
     int index,
     MenuItemModel menuItem, {
     required int quantity,
@@ -415,8 +441,9 @@ class Cart extends _$Cart {
     List<IngredientModel>? removedIngredients,
     String? note,
     double? effectiveBasePrice,
-  }) {
-    if (index < 0 || index >= state.length) return;
+  }) async {
+    final currentCart = state.value ?? [];
+    if (index < 0 || index >= currentCart.length) return;
 
     // Use provided effectiveBasePrice if available, otherwise calculate from size
     double basePrice = effectiveBasePrice ?? menuItem.prezzoEffettivo;
@@ -435,12 +462,14 @@ class Cart extends _$Cart {
       note: note,
     );
 
-    state = [
-      ...state.sublist(0, index),
+    final newCart = [
+      ...currentCart.sublist(0, index),
       CartItem(menuItem: menuItem, cartItem: cartItemModel),
-      ...state.sublist(index + 1),
+      ...currentCart.sublist(index + 1),
     ];
-    _saveToStorage();
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   /// Add a split item - two products at average price with modifications
@@ -448,7 +477,7 @@ class Cart extends _$Cart {
   /// [preCalculatedTotal] - If provided, uses this as the final unit price.
   ///                        This should be used when the caller has access to MenuItemSizeAssignmentModel
   ///                        which may have a priceOverride.
-  void addSplitItem({
+  Future<void> addSplitItem({
     required MenuItemModel firstProduct,
     required MenuItemModel secondProduct,
     int quantity = 1,
@@ -464,7 +493,7 @@ class Cart extends _$Cart {
     String? note,
     // Pre-calculated total (from modal with priceOverride support)
     double? preCalculatedTotal,
-  }) {
+  }) async {
     double roundedUnitPrice;
     double extrasTotalSum;
 
@@ -675,42 +704,51 @@ class Cart extends _$Cart {
       createdAt: DateTime.now(),
     );
 
+    final currentCart = state.value ?? [];
+
     // Check if identical split item exists
-    final existingIndex = state.indexWhere(
+    final existingIndex = currentCart.indexWhere(
       (item) =>
           item.menuItem.id == splitMenuItem.id &&
           item.cartItem.hasSameCustomizations(cartItemModel),
     );
 
+    List<CartItem> newCart;
     if (existingIndex >= 0) {
       // Update existing quantity
-      final existing = state[existingIndex];
+      final existing = currentCart[existingIndex];
       final updatedCartItem = existing.cartItem.copyWith(
         quantity: existing.cartItem.quantity + quantity,
       );
-      state = [
-        ...state.sublist(0, existingIndex),
+      newCart = [
+        ...currentCart.sublist(0, existingIndex),
         existing.copyWith(cartItem: updatedCartItem),
-        ...state.sublist(existingIndex + 1),
+        ...currentCart.sublist(existingIndex + 1),
       ];
     } else {
       // Add new split item
-      state = [
-        ...state,
+      newCart = [
+        ...currentCart,
         CartItem(menuItem: splitMenuItem, cartItem: cartItemModel),
       ];
     }
-    _saveToStorage();
+
+    state = AsyncValue.data(newCart);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    await _saveToStorage(newCart, orgId);
   }
 
   /// Validate and correct prices using the authoritative OrderPriceCalculator.
   /// Call this after modifying items to ensure UI prices match calculated prices.
   /// Returns the number of items that were corrected.
-  int validateAndCorrectPrices(OrderPriceCalculator calculator) {
+  Future<int> validateAndCorrectPrices(OrderPriceCalculator calculator) async {
+    final currentCart = state.value ?? [];
+    if (currentCart.isEmpty) return 0;
+
     int correctedCount = 0;
     final newState = <CartItem>[];
 
-    for (final item in state) {
+    for (final item in currentCart) {
       // Check if this is a split product
       final isSplit = item.cartItem.nome.contains('(Diviso)');
 
@@ -796,11 +834,12 @@ class Cart extends _$Cart {
         correctedCount++;
 
         // Log the correction
-        debugPrint('[PriceValidator] Correcting ${item.cartItem.nome}:');
-        debugPrint('  UI price: €${currentSubtotal.toStringAsFixed(2)}');
-        debugPrint('  Correct: €${calculated.subtotal.toStringAsFixed(2)}');
-        debugPrint(
+        Logger.debug('[PriceValidator] Correcting ${item.cartItem.nome}:', tag: 'Cart');
+        Logger.debug('  UI price: €${currentSubtotal.toStringAsFixed(2)}', tag: 'Cart');
+        Logger.debug('  Correct: €${calculated.subtotal.toStringAsFixed(2)}', tag: 'Cart');
+        Logger.debug(
           '  Difference: €${(calculated.subtotal - currentSubtotal).toStringAsFixed(2)}',
+          tag: 'Cart',
         );
 
         // Calculate the correct basePrice
@@ -832,37 +871,43 @@ class Cart extends _$Cart {
     }
 
     if (correctedCount > 0) {
-      state = newState;
-      _saveToStorage();
-      debugPrint('[PriceValidator] Corrected $correctedCount item(s)');
+      state = AsyncValue.data(newState);
+      final orgId = await ref.read(currentOrganizationProvider.future);
+      await _saveToStorage(newState, orgId);
+      Logger.debug('[PriceValidator] Corrected $correctedCount item(s)', tag: 'Cart');
     }
 
     return correctedCount;
   }
 
-  void clear() {
-    state = [];
-    _saveToStorage();
+  Future<void> clear() async {
+    state = const AsyncValue.data([]);
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_getStorageKey(orgId));
   }
 }
 
 /// Provider per subtotale carrello
 @riverpod
 double cartSubtotal(Ref ref) {
-  final cart = ref.watch(cartProvider);
+  final cartAsyncValue = ref.watch(cartProvider);
+  final cart = cartAsyncValue.value ?? [];
   return cart.fold(0.0, (sum, item) => sum + item.subtotal);
 }
 
 /// Provider per totale items nel carrello
 @riverpod
 int cartItemCount(Ref ref) {
-  final cart = ref.watch(cartProvider);
+  final cartAsyncValue = ref.watch(cartProvider);
+  final cart = cartAsyncValue.value ?? [];
   return cart.fold(0, (sum, item) => sum + item.quantity);
 }
 
 /// Provider per verificare se il carrello è vuoto
 @riverpod
 bool isCartEmpty(Ref ref) {
-  final cart = ref.watch(cartProvider);
+  final cartAsyncValue = ref.watch(cartProvider);
+  final cart = cartAsyncValue.value ?? [];
   return cart.isEmpty;
 }

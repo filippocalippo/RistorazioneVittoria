@@ -7,18 +7,19 @@ import 'organization_provider.dart';
 
 part 'product_sizes_provider.g.dart';
 
-@Riverpod(keepAlive: true) // Keep cached indefinitely for better performance
+@riverpod
 class ProductSizes extends _$ProductSizes {
   @override
   Future<List<MenuItemSizeAssignmentModel>> build(String menuItemId) async {
-    return _fetchProductSizes(menuItemId);
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    return _fetchProductSizes(menuItemId, orgId);
   }
 
   Future<List<MenuItemSizeAssignmentModel>> _fetchProductSizes(
     String menuItemId,
+    String? orgId,
   ) async {
     final supabase = Supabase.instance.client;
-    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       var query = supabase
@@ -68,7 +69,7 @@ class ProductSizes extends _$ProductSizes {
       });
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchProductSizes(assignment.menuItemId));
+      state = AsyncValue.data(await _fetchProductSizes(assignment.menuItemId, orgId));
     } catch (e) {
       throw Exception('Failed to assign size: $e');
     }
@@ -81,12 +82,13 @@ class ProductSizes extends _$ProductSizes {
     String menuItemId,
   ) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase.from('menu_item_sizes').update(data).eq('id', id);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchProductSizes(menuItemId));
+      state = AsyncValue.data(await _fetchProductSizes(menuItemId, orgId));
     } catch (e) {
       throw Exception('Failed to update size assignment: $e');
     }
@@ -95,12 +97,13 @@ class ProductSizes extends _$ProductSizes {
   /// Remove a size assignment
   Future<void> removeAssignment(String id, String menuItemId) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase.from('menu_item_sizes').delete().eq('id', id);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchProductSizes(menuItemId));
+      state = AsyncValue.data(await _fetchProductSizes(menuItemId, orgId));
     } catch (e) {
       throw Exception('Failed to remove size assignment: $e');
     }
@@ -109,6 +112,7 @@ class ProductSizes extends _$ProductSizes {
   /// Set a size as default (and unset others)
   Future<void> setDefaultSize(String id, String menuItemId) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       // First, unset all defaults for this product
@@ -124,7 +128,7 @@ class ProductSizes extends _$ProductSizes {
           .eq('id', id);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchProductSizes(menuItemId));
+      state = AsyncValue.data(await _fetchProductSizes(menuItemId, orgId));
     } catch (e) {
       throw Exception('Failed to set default size: $e');
     }
@@ -133,6 +137,7 @@ class ProductSizes extends _$ProductSizes {
   /// Clear all size assignments for a menu item
   Future<void> clearAllAssignments(String menuItemId) async {
     final supabase = Supabase.instance.client;
+    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       await supabase
@@ -141,7 +146,7 @@ class ProductSizes extends _$ProductSizes {
           .eq('menu_item_id', menuItemId);
 
       // Refresh the list
-      state = AsyncValue.data(await _fetchProductSizes(menuItemId));
+      state = AsyncValue.data(await _fetchProductSizes(menuItemId, orgId));
     } catch (e) {
       throw Exception('Failed to clear size assignments: $e');
     }
@@ -178,7 +183,7 @@ class ProductSizes extends _$ProductSizes {
         await supabase.from('menu_item_sizes').insert(payload);
       }
 
-      state = AsyncValue.data(await _fetchProductSizes(menuItemId));
+      state = AsyncValue.data(await _fetchProductSizes(menuItemId, orgId));
     } catch (e) {
       throw Exception('Failed to replace size assignments: $e');
     }

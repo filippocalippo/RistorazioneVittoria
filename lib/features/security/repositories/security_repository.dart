@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../providers/organization_provider.dart';
 
 class SecurityRepository {
   final SupabaseClient _client;

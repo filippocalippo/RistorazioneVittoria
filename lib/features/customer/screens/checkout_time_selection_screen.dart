@@ -126,7 +126,7 @@ class _CheckoutTimeSelectionScreenState extends ConsumerState<CheckoutTimeSelect
     try {
       final db = ref.read(databaseServiceProvider);
       final orgId = await ref.read(currentOrganizationProvider.future);
-      final cart = ref.read(cartProvider);
+      final cart = ref.read(cartProvider).value ?? [];
       final currentCartItems = cart.fold<int>(0, (sum, item) => sum + item.quantity);
       final raw = await db.getOrderManagementSettingsRaw(
         organizationId: orgId,

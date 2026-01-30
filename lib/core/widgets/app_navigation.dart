@@ -19,7 +19,7 @@ class DesktopNavBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentPath = GoRouterState.of(context).uri.path;
     final user = ref.watch(authProvider).value;
-    final cartCount = ref.watch(cartItemCountProvider);
+    final cartCountAsync = ref.watch(cartItemCountProvider);
     final hideCart = currentPath.startsWith(RouteNames.cart) ||
         currentPath.startsWith(RouteNames.checkout) ||
         currentPath.startsWith('/cart-new') ||
@@ -75,10 +75,11 @@ class DesktopNavBar extends ConsumerWidget {
             ),
 
             // Right side actions
-            if (!hideCart) ...[
-              _buildCartButton(context, ref, cartCount),
-              const SizedBox(width: AppSpacing.lg),
-            ],
+            if (!hideCart)
+              _buildCartButton(context, ref, cartCountAsync)
+            else
+              _buildCartButton(context, ref, 0),
+            if (!hideCart) const SizedBox(width: AppSpacing.lg),
             _buildUserMenu(context, user),
           ],
         ),
@@ -391,9 +392,9 @@ class _MobileBottomNavState extends ConsumerState<MobileBottomNav>
 
   @override
   Widget build(BuildContext context) {
-    final cartCount = ref.watch(cartItemCountProvider);
-    final cartSubtotal = ref.watch(cartSubtotalProvider);
-    final isCartEmpty = ref.watch(isCartEmptyProvider);
+    final cartCountAsync = ref.watch(cartItemCountProvider);
+    final cartSubtotalAsync = ref.watch(cartSubtotalProvider);
+    final isCartEmptyAsync = ref.watch(isCartEmptyProvider);
     final currentPath = GoRouterState.of(context).uri.path;
     final hideCart = currentPath.startsWith(RouteNames.cart) ||
         currentPath.startsWith(RouteNames.checkout) ||
@@ -408,101 +409,106 @@ class _MobileBottomNavState extends ConsumerState<MobileBottomNav>
       }
     });
 
+    // Handle cart providers
+    final cartCount = cartCountAsync;
+    final cartSubtotal = cartSubtotalAsync;
+    final isCartEmpty = isCartEmptyAsync;
+    
     if (isCartEmpty || hideCart) {
       return const SizedBox.shrink();
     }
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          bottom: AppSpacing.md,
-        ),
-        child: Stack(
-          clipBehavior: Clip.none, // Allow bubble to overflow
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.massive),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(AppRadius.massive),
-                    border: Border.all(
-                      color: AppColors.border.withValues(alpha: 0.5),
-                      width: 1,
+                return SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      left: AppSpacing.lg,
+                      right: AppSpacing.lg,
+                      bottom: AppSpacing.md,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: _GlassCartSection(
-                    itemCount: cartCount,
-                    subtotal: cartSubtotal,
-                  ),
-                ),
-              ),
-            ),
-            // +1 Bubble animation - positioned outside main container
-            if (_showBubble)
-              Positioned(
-                bottom: 80, // Above the container
-                left: 40,
-                child: AnimatedBuilder(
-                  animation: _bubbleController,
-                  builder: (context, child) {
-                    return SlideTransition(
-                      position: _bubbleSlide,
-                      child: ScaleTransition(
-                        scale: _bubbleScale,
-                        child: Opacity(
-                          opacity: _bubbleOpacity.value,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6, // 50% smaller
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.error,
-                                  AppColors.error.withValues(alpha: 0.8),
+                    child: Stack(
+                      clipBehavior: Clip.none, // Allow bubble to overflow
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.massive),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surface.withValues(alpha: 0.8),
+                                borderRadius: BorderRadius.circular(AppRadius.massive),
+                                border: Border.all(
+                                  color: AppColors.border.withValues(alpha: 0.5),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 8),
+                                  ),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.error.withValues(alpha: 0.4),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              '+1',
-                              style: AppTypography.labelMedium.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11, // 50% smaller
+                              child: _GlassCartSection(
+                                itemCount: cartCount,
+                                subtotal: cartSubtotal,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+                        // +1 Bubble animation - positioned outside main container
+                        if (_showBubble)
+                          Positioned(
+                            bottom: 80, // Above the container
+                            left: 40,
+                            child: AnimatedBuilder(
+                              animation: _bubbleController,
+                              builder: (context, child) {
+                                return SlideTransition(
+                                  position: _bubbleSlide,
+                                  child: ScaleTransition(
+                                    scale: _bubbleScale,
+                                    child: Opacity(
+                                      opacity: _bubbleOpacity.value,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, // 50% smaller
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              AppColors.error,
+                                              AppColors.error.withValues(alpha: 0.8),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: AppColors.error.withValues(alpha: 0.4),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          '+1',
+                                          style: AppTypography.labelMedium.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11, // 50% smaller
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
   }
 }
 

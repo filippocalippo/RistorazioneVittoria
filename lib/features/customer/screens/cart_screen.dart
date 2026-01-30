@@ -49,43 +49,62 @@ class CartScreenNew extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cart = ref.watch(cartProvider);
-    final subtotal = ref.watch(cartSubtotalProvider);
-    final isEmpty = ref.watch(isCartEmptyProvider);
+    final cartAsync = ref.watch(cartProvider);
+    final subtotalAsync = ref.watch(cartSubtotalProvider);
+    final isEmptyAsync = ref.watch(isCartEmptyProvider);
     final isDesktop = AppBreakpoints.isDesktop(context);
     final isMobile = AppBreakpoints.isMobile(context);
     final topPadding = isMobile
         ? kToolbarHeight + MediaQuery.of(context).padding.top + AppSpacing.sm
         : 0.0;
 
-    if (isEmpty) {
-      return ErrorBoundaryWithLogger(
-        contextTag: 'CartScreenNew.Empty',
-        child: Scaffold(
-          backgroundColor: AppColors.background,
-          body: Padding(
-            padding: EdgeInsets.only(top: topPadding),
-            child: _buildEmptyState(context),
-          ),
-        ),
-      );
-    }
+    return cartAsync.when(
+      data: (cart) {
+        final subtotal = subtotalAsync;
+        final isEmpty = isEmptyAsync;
 
-    return ErrorBoundaryWithLogger(
-      contextTag: 'CartScreenNew',
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: Padding(
-          padding: EdgeInsets.only(top: topPadding),
-          child: Column(
-            children: [
-              Expanded(
-                child: isDesktop
-                    ? _buildDesktopLayout(context, ref, cart, subtotal)
-                    : _buildMobileLayout(context, ref, cart, subtotal),
+        if (isEmpty) {
+          return ErrorBoundaryWithLogger(
+            contextTag: 'CartScreenNew.Empty',
+            child: Scaffold(
+              backgroundColor: AppColors.background,
+              body: Padding(
+                padding: EdgeInsets.only(top: topPadding),
+                child: _buildEmptyState(context),
               ),
-            ],
+            ),
+          );
+        }
+
+        return ErrorBoundaryWithLogger(
+          contextTag: 'CartScreenNew',
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            body: Padding(
+              padding: EdgeInsets.only(top: topPadding),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: isDesktop
+                        ? _buildDesktopLayout(context, ref, cart, subtotal)
+                        : _buildMobileLayout(context, ref, cart, subtotal),
+                  ),
+                ],
+              ),
+            ),
           ),
+        );
+      },
+      loading: () => Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (_, __) => Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Text('Errore nel caricamento del carrello'),
         ),
       ),
     );
@@ -1160,7 +1179,7 @@ class _CartItemCardNewState extends ConsumerState<_CartItemCardNew> {
       );
 
       // Run validation - this will log and correct any discrepancies
-      final correctedCount = ref
+      final correctedCount = await ref
           .read(cartProvider.notifier)
           .validateAndCorrectPrices(calculator);
 

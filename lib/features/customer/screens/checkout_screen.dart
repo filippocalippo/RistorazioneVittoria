@@ -89,73 +89,91 @@ class _CheckoutScreenNewState extends ConsumerState<CheckoutScreenNew> {
 
   @override
   Widget build(BuildContext context) {
-    final cart = ref.watch(cartProvider);
-    final subtotal = ref.watch(cartSubtotalProvider);
+    final cartAsync = ref.watch(cartProvider);
+    final subtotalAsync = ref.watch(cartSubtotalProvider);
     final settingsAsync = ref.watch(pizzeriaSettingsProvider);
     final isMobile = AppBreakpoints.isMobile(context);
     final topPadding = isMobile
         ? kToolbarHeight + MediaQuery.of(context).padding.top + AppSpacing.sm
         : 0.0;
 
-    // Calculate delivery fee using centralized calculator logic
-    double deliveryCost = 0.0;
-    if (widget.orderType == OrderType.delivery) {
-      final deliveryFeeConfig = _createDeliveryConfig(settingsAsync.value);
-      if (deliveryFeeConfig != null) {
-        // Check free delivery first
-        if (subtotal >= deliveryFeeConfig.consegnaGratuitaSopra) {
-          deliveryCost = 0.0;
-        } else {
-          // Try radial calculation
-          final radialFee = deliveryFeeConfig.calculateRadialFee(
-            widget.selectedAddress?.latitude,
-            widget.selectedAddress?.longitude,
-          );
-          
-          if (radialFee != null) {
-            deliveryCost = radialFee;
+    return cartAsync.when(
+      data: (cart) {
+        final subtotal = subtotalAsync;
+
+        // Calculate delivery fee using centralized calculator logic
+        double deliveryCost = 0.0;
+        if (widget.orderType == OrderType.delivery) {
+          final deliveryFeeConfig = _createDeliveryConfig(settingsAsync.value);
+          if (deliveryFeeConfig != null) {
+            // Check free delivery first
+            if (subtotal >= deliveryFeeConfig.consegnaGratuitaSopra) {
+              deliveryCost = 0.0;
+            } else {
+              // Try radial calculation
+              final radialFee = deliveryFeeConfig.calculateRadialFee(
+                widget.selectedAddress?.latitude,
+                widget.selectedAddress?.longitude,
+              );
+
+              if (radialFee != null) {
+                deliveryCost = radialFee;
+              } else {
+                // Fallback to fixed fee
+                deliveryCost = deliveryFeeConfig.costoConsegnaBase;
+              }
+            }
           } else {
-            // Fallback to fixed fee
-            deliveryCost = deliveryFeeConfig.costoConsegnaBase;
+            deliveryCost = AppConstants.defaultDeliveryCost;
           }
         }
-      } else {
-        deliveryCost = AppConstants.defaultDeliveryCost;
-      }
-    }
-    final total = subtotal + deliveryCost;
+        final total = subtotal + deliveryCost;
 
-    // Minimum order validation
-    final minimumOrder = settingsAsync.value?.orderManagement.ordineMinimo ?? 10.0;
-    final isMinimumMet = subtotal >= minimumOrder;
+        // Minimum order validation
+        final minimumOrder = settingsAsync.value?.orderManagement.ordineMinimo ?? 10.0;
+        final isMinimumMet = subtotal >= minimumOrder;
 
-    return ErrorBoundaryWithLogger(
-      contextTag: 'CheckoutScreenNew',
-      child: Scaffold(
-        backgroundColor: AppColors.surface,
-        body: Padding(
-          padding: EdgeInsets.only(top: topPadding),
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildDeliveryInfoCard(),
-                      const SizedBox(height: AppSpacing.xxl),
-                      _buildPaymentSection(),
-                      const SizedBox(height: AppSpacing.xxl),
-                      _buildOrderSummary(cart, subtotal, deliveryCost, total),
-                      const SizedBox(height: 120),
-                    ],
+        return ErrorBoundaryWithLogger(
+          contextTag: 'CheckoutScreenNew',
+          child: Scaffold(
+            backgroundColor: AppColors.surface,
+            body: Padding(
+              padding: EdgeInsets.only(top: topPadding),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDeliveryInfoCard(),
+                          const SizedBox(height: AppSpacing.xxl),
+                          _buildPaymentSection(),
+                          const SizedBox(height: AppSpacing.xxl),
+                          _buildOrderSummary(cart, subtotal, deliveryCost, total),
+                          const SizedBox(height: 120),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  _buildBottomBar(total, isMinimumMet, minimumOrder),
+                ],
               ),
-              _buildBottomBar(total, isMinimumMet, minimumOrder),
-            ],
+            ),
           ),
+        );
+      },
+      loading: () => Scaffold(
+        backgroundColor: AppColors.surface,
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (_, __) => Scaffold(
+        backgroundColor: AppColors.surface,
+        body: Center(
+          child: Text('Errore nel caricamento del carrello'),
         ),
       ),
     );
@@ -702,7 +720,7 @@ class _CheckoutScreenNewState extends ConsumerState<CheckoutScreenNew> {
     setState(() => _isProcessing = true);
 
     try {
-      final cart = ref.read(cartProvider);
+      final cart = ref.read(cartProvider).value ?? [];
       final user = ref.read(authProvider).value;
       if (user == null) throw Exception('Utente non autenticato');
 

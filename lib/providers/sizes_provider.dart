@@ -6,16 +6,16 @@ import '../core/models/size_variant_model.dart';
 part 'sizes_provider.g.dart';
 
 /// Provider to fetch all available sizes from sizes_master table
-@Riverpod(keepAlive: true)
+@riverpod
 class Sizes extends _$Sizes {
   @override
   Future<List<SizeVariantModel>> build() async {
-    return _fetchSizes();
+    final orgId = await ref.watch(currentOrganizationProvider.future);
+    return _fetchSizes(orgId);
   }
 
-  Future<List<SizeVariantModel>> _fetchSizes() async {
+  Future<List<SizeVariantModel>> _fetchSizes(String? orgId) async {
     final supabase = Supabase.instance.client;
-    final orgId = await ref.read(currentOrganizationProvider.future);
 
     try {
       // SECURITY: Require organization context to prevent cross-tenant data access
@@ -40,6 +40,7 @@ class Sizes extends _$Sizes {
 
   /// Refresh sizes list
   Future<void> refresh() async {
-    state = AsyncValue.data(await _fetchSizes());
+    final orgId = await ref.read(currentOrganizationProvider.future);
+    state = AsyncValue.data(await _fetchSizes(orgId));
   }
 }
